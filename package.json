@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "lint": "echo \"No linting configured\"",
+    "test": "echo \"No tests configured\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.83.0",
@@ -23,5 +25,10 @@
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "GramaSiri",
+  "license": "MIT"
 }
