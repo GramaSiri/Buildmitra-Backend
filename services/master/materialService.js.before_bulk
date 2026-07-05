@@ -1,0 +1,79 @@
+const { pool } = require("../../config/database");
+
+async function getAllMaterials() {
+    const [rows] = await pool.query(
+        "SELECT * FROM material_master ORDER BY product_name"
+    );
+    return rows;
+}
+
+async function addMaterial(material) {
+    const sql = `
+        INSERT INTO material_master
+        (material_code, product_name, category, brand, unit, rate, gst, stock, min_order, description, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const values = [
+        material.material_code,
+        material.product_name,
+        material.category,
+        material.brand,
+        material.unit,
+        material.rate,
+        material.gst,
+        material.stock,
+        material.min_order,
+        material.description,
+        material.status || "Active"
+    ];
+
+    const [result] = await pool.query(sql, values);
+    return result;
+}
+
+async function updateMaterial(id, material) {
+    const sql = `
+        UPDATE material_master
+        SET
+            product_name=?,
+            category=?,
+            brand=?,
+            unit=?,
+            rate=?,
+            gst=?,
+            stock=?,
+            min_order=?,
+            description=?,
+            status=?
+        WHERE id=?
+    `;
+
+    await pool.query(sql, [
+        material.product_name,
+        material.category,
+        material.brand,
+        material.unit,
+        material.rate,
+        material.gst,
+        material.stock,
+        material.min_order,
+        material.description,
+        material.status,
+        id
+    ]);
+}
+
+async function deleteMaterial(id) {
+    await pool.query(
+        "DELETE FROM material_master WHERE id=?",
+        [id]
+    );
+}
+
+module.exports = {
+    getAllMaterials,
+    addMaterial,
+    updateMaterial,
+    deleteMaterial
+};

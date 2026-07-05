@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuildMitra - Professional Architectural Floorplan</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: #1a1a2e;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: #2c3e50;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .header {
+            background: #0f3460;
+            color: white;
+            padding: 20px 30px;
+            border-bottom: 3px solid #e94560;
+        }
+        
+        .header h1 { font-size: 28px; }
+        .header p { opacity: 0.8; margin-top: 5px; }
+        
+        .controls {
+            background: #34495e;
+            padding: 15px 30px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .controls label { color: white; font-size: 13px; }
+        .controls input, .controls select {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            background: #2c3e50;
+            color: white;
+            border: 1px solid #466085;
+        }
+        
+        .controls button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        
+        .controls button:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+        
+        .floorplan-area {
+            background: #e8e8e8;
+            padding: 30px;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .drawing-container {
+            background: white;
+            box-shadow: 0 5px 30px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            overflow: auto;
+        }
+        
+        canvas {
+            display: block;
+            background: white;
+        }
+        
+        .sidebar {
+            background: #2c3e50;
+            padding: 20px;
+            color: white;
+            min-width: 280px;
+        }
+        
+        .room-details {
+            margin-bottom: 20px;
+        }
+        
+        .room-details h3 {
+            color: #e94560;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #e94560;
+        }
+        
+        .room-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .room-entry {
+            background: #34495e;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            font-size: 12px;
+            border-left: 3px solid #e94560;
+        }
+        
+        .dimension-line {
+            margin-top: 15px;
+            padding: 10px;
+            background: #34495e;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 12px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 12px;
+        }
+        
+        .status.success { background: #27ae60; }
+        .status.error { background: #c0392b; }
+        .status.info { background: #3498db; }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading.active { display: block; }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #e94560;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏗 BuildMitra - Professional Architectural Floorplan</h1>
+            <p>2D Architectural Drawing with Walls, Doors, Windows & Dimensions</p>
+        </div>
+        
+        <div class="controls">
+            <label>Plot Width:</label>
+            <input type="number" id="plotWidth" value="40" step="5" style="width:70px">
+            <label>Depth:</label>
+            <input type="number" id="plotDepth" value="50" step="5" style="width:70px">
+            <label>Bedrooms:</label>
+            <select id="bedrooms">
+                <option value="2">2 Bedrooms</option>
+                <option value="3" selected>3 Bedrooms</option>
+                <option value="4">4 Bedrooms</option>
+                <option value="5">5 Bedrooms</option>
+            </select>
+            <label>Vaastu:</label>
+            <select id="vaastu">
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+            </select>
+            <button onclick="generateFloorplan()">🎨 Generate Professional Drawing</button>
+            <button onclick="exportDrawing()">📸 Export as PNG</button>
+        </div>
+        
+        <div class="main-layout">
+            <div class="floorplan-area">
+                <div class="drawing-container">
+                    <canvas id="floorplanCanvas" width="900" height="700"></canvas>
+                </div>
+            </div>
+            
+            <div class="sidebar">
+                <div id="serverStatus" class="status info">🔍 Checking server...</div>
+                
+                <div class="room-details">
+                    <h3>📋 Room Schedule</h3>
+                    <div id="roomList" class="room-list">
+                        <div style="text-align:center; color:#888;">Click Generate to view rooms</div>
+                    </div>
+                </div>
+                
+                <div class="dimension-line" id="dimensionInfo">
+                    <strong>📐 Plot Dimensions</strong><br>
+                    Width: 40' | Depth: 50'<br>
+                    Total Area: 2000 sq ft
+                </div>
+                
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top:10px">Generating Architectural Drawing...</p>
+                </div>
+                <div id="status"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('floorplanCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 900;
+        canvas.height = 700;
+        
+        // Professional architectural drawing function
+        function drawArchitecturalFloorplan(bedrooms, plotWidth, plotDepth) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background grid (blueprint style)
+            ctx.fillStyle = '#f8f9fa';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = '#c0c0c0';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < canvas.width; i += 25) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            
+            // Calculate scale
+            const scale = 1.2;
+            const offsetX = 80;
+            const offsetY = 80;
+            
+            // Draw outer boundary wall
+            const boundaryWidth = plotWidth * scale;
+            const boundaryHeight = plotDepth * scale;
+            
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(offsetX, offsetY, boundaryWidth, boundaryHeight);
+            
+            // Room layouts based on bedrooms count
+            const rooms = [];
+            
+            // Common areas
+            rooms.push({ name: 'LOBBY / FOYER', x: offsetX + 5, y: offsetY + 5, w: 60, h: 50, type: 'common' });
+            rooms.push({ name: 'LIVING & DINING', x: offsetX + 70, y: offsetY + 5, w: 120, h: 60, type: 'common' });
+            rooms.push({ name: 'KITCHEN', x: offsetX + 5, y: offsetY + 60, w: 55, h: 45, type: 'kitchen' });
+            rooms.push({ name: 'UTILITY', x: offsetX + 65, y: offsetY + 60, w: 40, h: 45, type: 'utility' });
+            rooms.push({ name: 'TOILET 1', x: offsetX + 110, y: offsetY + 65, w: 30, h: 25, type: 'toilet' });
+            
+            // Bedrooms based on count
+            let bedroomX = offsetX + 15;
+            let bedroomY = offsetY + 120;
+            
+            for (let i = 1; i <= Math.min(bedrooms, 4); i++) {
+                let bedroomName = i === 1 ? 'MASTER BEDROOM' : `BEDROOM ${i}`;
+                let width = i === 1 ? 90 : 75;
+                let height = 70;
+                
+                rooms.push({
+                    name: bedroomName,
+                    x: bedroomX,
+                    y: bedroomY,
+                    w: width,
+                    h: height,
+                    type: 'bedroom',
+                    hasAttachedToilet: i === 1,
+                    hasBalcony: i === 1
+                });
+                
+                bedroomX += width + 15;
+                
+                if (bedroomX + 75 > offsetX + boundaryWidth - 20) {
+                    bedroomX = offsetX + 15;
+                    bedroomY += 90;
+                }
+            }
+            
+            // Add balcony for master bedroom
+            rooms.push({ name: 'BALCONY', x: offsetX + 15, y: offsetY + 195, w: 50, h: 20, type: 'balcony' });
+            
+            // Add common bathroom
+            rooms.push({ name: 'TOILET 2 Common', x: offsetX + boundaryWidth - 45, y: offsetY + 130, w: 30, h: 35, type: 'toilet' });
+            
+            // Draw all rooms
+            rooms.forEach(room => {
+                // Set room color based on type
+                let color;
+                switch(room.type) {
+                    case 'common': color = '#FFF8DC'; break;
+                    case 'kitchen': color = '#FFF0E0'; break;
+                    case 'bedroom': color = '#E8F4FD'; break;
+                    case 'toilet': color = '#E0F0F0'; break;
+                    case 'utility': color = '#F5E6D3'; break;
+                    case 'balcony': color = '#D3E0D3'; break;
+                    default: color = '#F5F5DC';
+                }
+                
+                // Fill room
+                ctx.fillStyle = color;
+                ctx.fillRect(room.x, room.y, room.w, room.h);
+                
+                // Draw wall (thick border)
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 2.5;
+                ctx.strokeRect(room.x, room.y, room.w, room.h);
+                
+                // Draw room name
+                ctx.fillStyle = '#1a1a2e';
+                ctx.font = 'bold 10px "Segoe UI"';
+                ctx.textAlign = 'center';
+                let displayName = room.name;
+                if (room.w < 60 && room.name.length > 8) {
+                    displayName = room.name.substring(0, 6) + '...';
+                }
+                ctx.fillText(displayName, room.x + room.w/2, room.y + room.h/2 - 5);
+                
+                // Draw dimensions
+                ctx.font = '8px "Segoe UI"';
+                ctx.fillStyle = '#555';
+                let roomWidth = (room.w / scale).toFixed(0);
+                let roomHeight = (room.h / scale).toFixed(0);
+                ctx.fillText(`${roomWidth}' x ${roomHeight}'`, room.x + room.w/2, room.y + room.h/2 + 8);
+                
+                // Draw doors
+                if (room.type !== 'balcony') {
+                    ctx.fillStyle = '#DEB887';
+                    ctx.fillRect(room.x + room.w - 12, room.y + room.h - 10, 12, 8);
+                    ctx.strokeStyle = '#8B7355';
+                    ctx.strokeRect(room.x + room.w - 12, room.y + room.h - 10, 12, 8);
+                }
+                
+                // Draw windows for exterior walls
+                if (room.type === 'bedroom' || room.type === 'common') {
+                    ctx.fillStyle = '#ADD8E6';
+                    ctx.fillRect(room.x + 10, room.y - 5, 30, 5);
+                    ctx.fillStyle = '#4682B4';
+                    ctx.fillRect(room.x + 10, room.y - 4, 30, 3);
+                }
+            });
+            
+            // Draw corridors/passageways
+            ctx.beginPath();
+            ctx.fillStyle = '#F0E6D2';
+            ctx.fillRect(offsetX + 140, offsetY + 70, 40, 50);
+            ctx.strokeStyle = '#654321';
+            ctx.strokeRect(offsetX + 140, offsetY + 70, 40, 50);
+            
+            // Draw staircase
+            ctx.fillStyle = '#C0C0C0';
+            for (let i = 0; i < 5; i++) {
+                ctx.fillRect(offsetX + boundaryWidth - 45, offsetY + 55 + i*8, 25, 4);
+            }
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = 'bold 10px "Segoe UI"';
+            ctx.fillText('UP', offsetX + boundaryWidth - 37, offsetY + 75);
+            
+            // Draw title block
+            ctx.fillStyle = '#0f3460';
+            ctx.fillRect(20, canvas.height - 65, 280, 50);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 11px "Segoe UI"';
+            ctx.fillText('BUILDMITRA ARCHITECTURAL FLOORPLAN', 30, canvas.height - 48);
+            ctx.font = '9px "Segoe UI"';
+            ctx.fillText(`Plot: ${plotWidth}' x ${plotDepth}' | Area: ${plotWidth * plotDepth} sq ft`, 30, canvas.height - 35);
+            ctx.fillText(`Bedrooms: ${bedrooms} | Vaastu Compliant | Scale: Not to Scale`, 30, canvas.height - 22);
+            
+            // Draw north arrow
+            const northX = canvas.width - 60;
+            const northY = 50;
+            ctx.fillStyle = '#2c3e50';
+            ctx.beginPath();
+            ctx.moveTo(northX, northY - 15);
+            ctx.lineTo(northX - 8, northY);
+            ctx.lineTo(northX - 3, northY);
+            ctx.lineTo(northX - 3, northY + 8);
+            ctx.lineTo(northX + 3, northY + 8);
+            ctx.lineTo(northX + 3, northY);
+            ctx.lineTo(northX + 8, northY);
+            ctx.fill();
+            ctx.fillStyle = '#e94560';
+            ctx.font = 'bold 14px "Segoe UI"';
+            ctx.fillText('N', northX - 5, northY - 18);
+            
+            return rooms;
+        }
+        
+        async function checkServerStatus() {
+            const statusDiv = document.getElementById('serverStatus');
+            try {
+                const response = await fetch('http://localhost:5000/api/floorplan/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plotWidth: 30, plotDepth: 40, bedrooms: 3, vaastu: true })
+                });
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = '✅ Server Online | Ready';
+                    statusDiv.className = 'status success';
+                    return true;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '❌ Server Offline - Run: npm start';
+                statusDiv.className = 'status error';
+                return false;
+            }
+        }
+        
+        async function generateFloorplan() {
+            const plotWidth = parseInt(document.getElementById('plotWidth').value);
+            const plotDepth = parseInt(document.getElementById('plotDepth').value);
+            const bedrooms = parseInt(document.getElementById('bedrooms').value);
+            
+            const loading = document.getElementById('loading');
+            const statusDiv = document.getElementById('status');
+            const roomListDiv = document.getElementById('roomList');
+            const dimensionInfo = document.getElementById('dimensionInfo');
+            
+            loading.classList.add('active');
+            statusDiv.innerHTML = '';
+            
+            try {
+                // Draw the architectural floorplan
+                const rooms = drawArchitecturalFloorplan(bedrooms, plotWidth, plotDepth);
+                
+                // Update dimension info
+                dimensionInfo.innerHTML = `
+                    <strong>📐 Plot Dimensions</strong><br>
+                    Width: ${plotWidth}' | Depth: ${plotDepth}'<br>
+                    Total Area: ${plotWidth * plotDepth} sq ft<br>
+                    Bedrooms: ${bedrooms}
+                `;
+                
+                // Update room list
+                roomListDiv.innerHTML = '';
+                rooms.forEach(room => {
+                    let width = (room.w / 1.2).toFixed(0);
+                    let height = (room.h / 1.2).toFixed(0);
+                    roomListDiv.innerHTML += `
+                        <div class="room-entry">
+                            <strong>${room.name}</strong><br>
+                            ${width}' x ${height}' | ${(width * height).toFixed(0)} sq ft
+                        </div>
+                    `;
+                });
+                
+                statusDiv.innerHTML = '<div class="status success">✅ Professional Architectural Drawing Generated!</div>';
+                
+                // Also call backend to keep data sync
+                const response = await fetch('http://localhost:5000/api/floorplan/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plotWidth, plotDepth, bedrooms, vaastu: true })
+                });
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+        
+        function exportDrawing() {
+            const link = document.createElement('a');
+            link.download = 'buildmitra-architectural-floorplan.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        function drawInitial() {
+            drawArchitecturalFloorplan(3, 40, 50);
+        }
+        
+        drawInitial();
+        checkServerStatus();
+        setInterval(checkServerStatus, 10000);
+    </script>
+</body>
+</html>

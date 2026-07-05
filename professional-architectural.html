@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuildMitra - Professional Architectural Floorplan</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a2e;
+            font-family: 'Segoe UI', monospace;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        .header {
+            background: #0f3460;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .toolbar {
+            background: #2c3e50;
+            padding: 15px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+        }
+        .toolbar input, .toolbar select {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            background: #34495e;
+            color: white;
+        }
+        .toolbar button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .canvas-container {
+            padding: 30px;
+            background: #e8e8e8;
+            display: flex;
+            justify-content: center;
+        }
+        canvas {
+            background: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
+        .info-panel {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .status.online { background: #27ae60; }
+        .status.offline { background: #c0392b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏗 BuildMitra - Professional Architectural Floorplan</h1>
+            <p>Proper 2D Drawing with Walls, Doors, Windows & Dimensions</p>
+        </div>
+        
+        <div class="toolbar">
+            <label>Width:</label>
+            <input type="number" id="width" value="40" step="5" style="width:70px">
+            <label>Depth:</label>
+            <input type="number" id="depth" value="50" step="5" style="width:70px">
+            <label>Bedrooms:</label>
+            <select id="bedrooms">
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+                <option value="4">4</option>
+            </select>
+            <button onclick="generate()">🎨 Generate Architectural Drawing</button>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="canvas" width="1100" height="800"></canvas>
+        </div>
+        
+        <div class="info-panel">
+            <div id="serverStatus" class="status online">✅ Server Connected</div>
+            <div id="stats">Click Generate to create professional floorplan</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        async function generate() {
+            const width = parseInt(document.getElementById('width').value);
+            const depth = parseInt(document.getElementById('depth').value);
+            const bedrooms = parseInt(document.getElementById('bedrooms').value);
+            
+            document.getElementById('stats').innerHTML = '⏳ Generating architectural floorplan...';
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/floorplan/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plotWidth: width, plotDepth: depth, bedrooms, vaastu: true })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    drawArchitecturalFloorplan(data.data);
+                    document.getElementById('stats').innerHTML = `✅ ${data.message} | Built-up: ${data.data.statistics.builtUpArea} sq ft | Rooms: ${data.data.rooms.length}`;
+                }
+            } catch (error) {
+                document.getElementById('stats').innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        function drawArchitecturalFloorplan(data) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background
+            ctx.fillStyle = '#fafafa';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < canvas.width; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+            
+            // Offset for drawing
+            const offsetX = 80;
+            const offsetY = 60;
+            
+            // Draw all rooms with proper architectural styling
+            data.rooms.forEach(room => {
+                const x = offsetX + room.x;
+                const y = offsetY + room.y;
+                
+                // Room background
+                ctx.fillStyle = room.color || '#F5F5DC';
+                ctx.fillRect(x, y, room.width, room.depth);
+                
+                // Walls (thick border)
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x, y, room.width, room.depth);
+                
+                // Room name
+                ctx.fillStyle = '#1a1a2e';
+                ctx.font = 'bold 12px "Segoe UI"';
+                ctx.textAlign = 'center';
+                ctx.fillText(room.name, x + room.width/2, y + room.depth/2 - 5);
+                
+                // Dimensions
+                ctx.font = '9px "Segoe UI"';
+                ctx.fillStyle = '#555';
+                ctx.fillText(`${(room.width/data.scale).toFixed(0)}' x ${(room.depth/data.scale).toFixed(0)}'`, 
+                    x + room.width/2, y + room.depth/2 + 10);
+                
+                // Area
+                ctx.font = '8px "Segoe UI"';
+                ctx.fillStyle = '#777';
+                ctx.fillText(`${room.area} sq ft`, x + room.width/2, y + room.depth/2 + 22);
+                
+                // Draw doors
+                if (room.doors) {
+                    room.doors.forEach(door => {
+                        ctx.fillStyle = '#DEB887';
+                        ctx.fillRect(offsetX + door.x, offsetY + door.y - 3, door.width, 6);
+                        ctx.fillStyle = '#A0522D';
+                        ctx.fillRect(offsetX + door.x, offsetY + door.y - 2, door.width, 4);
+                    });
+                }
+                
+                // Draw windows
+                if (room.windows) {
+                    room.windows.forEach(window => {
+                        ctx.fillStyle = '#ADD8E6';
+                        ctx.fillRect(offsetX + window.x, offsetY + window.y - 4, window.width, 8);
+                        ctx.strokeStyle = '#4682B4';
+                        ctx.strokeRect(offsetX + window.x, offsetY + window.y - 4, window.width, 8);
+                    });
+                }
+                
+                // Draw attached toilet if exists
+                if (room.attachedToilet) {
+                    const toilet = room.attachedToilet;
+                    ctx.fillStyle = '#E0F0F0';
+                    ctx.fillRect(offsetX + toilet.x, offsetY + toilet.y, toilet.width, toilet.depth);
+                    ctx.strokeStyle = '#654321';
+                    ctx.strokeRect(offsetX + toilet.x, offsetY + toilet.y, toilet.width, toilet.depth);
+                    ctx.fillStyle = '#1a1a2e';
+                    ctx.font = '8px "Segoe UI"';
+                    ctx.fillText(toilet.name, offsetX + toilet.x + toilet.width/2, offsetY + toilet.y + toilet.depth/2);
+                }
+                
+                // Draw balcony
+                if (room.balcony) {
+                    const balcony = room.balcony;
+                    ctx.fillStyle = '#D3E0D3';
+                    ctx.fillRect(offsetX + balcony.x, offsetY + balcony.y, balcony.width, balcony.depth);
+                    ctx.strokeStyle = '#654321';
+                    ctx.strokeRect(offsetX + balcony.x, offsetY + balcony.y, balcony.width, balcony.depth);
+                }
+            });
+            
+            // Title block
+            ctx.fillStyle = '#0f3460';
+            ctx.fillRect(20, canvas.height - 70, 350, 55);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 11px "Segoe UI"';
+            ctx.fillText('BUILDMITRA ARCHITECTURAL FLOORPLAN', 30, canvas.height - 50);
+            ctx.font = '9px "Segoe UI"';
+            ctx.fillText(`Plot: ${data.plot.width}' x ${data.plot.depth}' | Area: ${data.plot.area} sq ft`, 30, canvas.height - 35);
+            ctx.fillText(`Built-up: ${data.statistics.builtUpArea} sq ft | ${data.constraints.bedrooms} Bedrooms`, 30, canvas.height - 22);
+            
+            // North Arrow
+            const northX = canvas.width - 70;
+            const northY = 70;
+            ctx.fillStyle = '#2c3e50';
+            ctx.beginPath();
+            ctx.moveTo(northX, northY - 20);
+            ctx.lineTo(northX - 10, northY);
+            ctx.lineTo(northX - 3, northY);
+            ctx.lineTo(northX - 3, northY + 10);
+            ctx.lineTo(northX + 3, northY + 10);
+            ctx.lineTo(northX + 3, northY);
+            ctx.lineTo(northX + 10, northY);
+            ctx.fill();
+            ctx.fillStyle = '#e94560';
+            ctx.font = 'bold 16px "Segoe UI"';
+            ctx.fillText('N', northX - 5, northY - 22);
+        }
+        
+        async function checkServer() {
+            try {
+                await fetch('http://localhost:5000/health');
+                document.getElementById('serverStatus').innerHTML = '✅ Server Online - Architectural API Ready';
+                document.getElementById('serverStatus').className = 'status online';
+            } catch {
+                document.getElementById('serverStatus').innerHTML = '❌ Server Offline - Run: npm start';
+                document.getElementById('serverStatus').className = 'status offline';
+            }
+        }
+        
+        checkServer();
+        setInterval(checkServer, 5000);
+    </script>
+</body>
+</html>

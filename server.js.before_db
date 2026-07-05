@@ -1,0 +1,76 @@
+const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Ensure data folder exists
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+
+// Default rates file
+const ratesFile = path.join(dataDir, 'rates.json');
+if (!fs.existsSync(ratesFile)) {
+  const defaultRates = {
+    cement: 400,
+    sand: 55,
+    aggregate: 50,
+    steel: 68,
+    labour_skilled: 350,
+    labour_semiskilled: 250,
+    labour_unskilled: 180
+  };
+  fs.writeFileSync(ratesFile, JSON.stringify(defaultRates, null, 2));
+}
+
+app.use(cors());
+app.use(express.json());
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Server is running' });
+});
+
+// Get user status (for login)
+app.get('/api/user/status', (req, res) => {
+  const phone = req.query.phone;
+  if (phone === '7676942386') {
+    return res.json({ status: 'approved', name: 'ABCD', role: 'buyer', password: '123456' });
+  }
+  res.json({ status: 'not_found' });
+});
+
+// Get all rates
+app.get('/api/rates', (req, res) => {
+  try {
+    const rates = JSON.parse(fs.readFileSync(ratesFile, 'utf8'));
+    res.json(rates);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update a single rate (optional, for admin)
+app.post('/api/rates/update', (req, res) => {
+  const { category, rate } = req.body;
+  try {
+    const rates = JSON.parse(fs.readFileSync(ratesFile, 'utf8'));
+    if (rates[category] !== undefined) {
+      rates[category] = rate;
+      fs.writeFileSync(ratesFile, JSON.stringify(rates, null, 2));
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Category not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Start server
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`📊 Rates available at /api/rates`);
+});

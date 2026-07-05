@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuildMitra Floorplan - Proper Drawing</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .content {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 30px;
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .control-group input, .control-group select {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .floorplan-container {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .floorplan-canvas {
+            background: white;
+            border: 3px solid #333;
+            border-radius: 8px;
+            width: 100%;
+            min-height: 600px;
+            position: relative;
+        }
+
+        canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .server-status {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 12px;
+            margin-bottom: 20px;
+        }
+
+        .server-status.online {
+            background: #d4edda;
+            color: #28a745;
+        }
+
+        .server-status.offline {
+            background: #f8d7da;
+            color: #dc3545;
+        }
+
+        .room-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .room-info h4 {
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+
+        .room-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .room-item {
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 3px solid #667eea;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .legend h4 {
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+
+        .legend-item {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏗 BuildMitra Floorplan Generator</h1>
+            <p>AI-Powered Floor Plan Visualization with Proper Scaling</p>
+        </div>
+
+        <div class="content">
+            <div class="sidebar">
+                <div class="server-status" id="serverStatus">
+                    🔍 Checking server...
+                </div>
+
+                <div class="controls">
+                    <div class="control-group">
+                        <label>📏 Plot Width (ft)</label>
+                        <input type="number" id="plotWidth" value="30" step="5">
+                    </div>
+                    <div class="control-group">
+                        <label>📐 Plot Depth (ft)</label>
+                        <input type="number" id="plotDepth" value="40" step="5">
+                    </div>
+                    <div class="control-group">
+                        <label>🛏 Bedrooms</label>
+                        <select id="bedrooms">
+                            <option value="1">1 Bedroom</option>
+                            <option value="2">2 Bedrooms</option>
+                            <option value="3" selected>3 Bedrooms</option>
+                            <option value="4">4 Bedrooms</option>
+                            <option value="5">5 Bedrooms</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>🧭 Vaastu</label>
+                        <select id="vaastu">
+                            <option value="true">Enabled</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                    </div>
+                    <button onclick="generateFloorplan()">✨ Generate</button>
+                </div>
+
+                <div class="legend">
+                    <h4>🎨 Room Colors</h4>
+                    <div><span class="legend-item" style="background:#FFE5B4;"></span> Hall</div>
+                    <div><span class="legend-item" style="background:#C5E0B4;"></span> Kitchen</div>
+                    <div><span class="legend-item" style="background:#B4D7E0;"></span> Bedroom</div>
+                    <div><span class="legend-item" style="background:#E0B4D7;"></span> Bathroom</div>
+                </div>
+
+                <div id="roomInfo" class="room-info" style="display: none;">
+                    <h4>📋 Rooms</h4>
+                    <div id="roomList" class="room-list"></div>
+                </div>
+            </div>
+
+            <div class="floorplan-container">
+                <div class="floorplan-canvas">
+                    <canvas id="floorplanCanvas" width="800" height="600"></canvas>
+                </div>
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Generating...</p>
+                </div>
+                <div id="status"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('floorplanCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Fixed canvas size
+        canvas.width = 800;
+        canvas.height = 600;
+        
+        const colors = {
+            'Hall': '#FFE5B4',
+            'Kitchen': '#C5E0B4',
+            'Bedroom': '#B4D7E0',
+            'Bathroom': '#E0B4D7'
+        };
+        
+        function drawGrid() {
+            // Draw background
+            ctx.fillStyle = '#f9f9f9';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid lines
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            
+            // Vertical lines
+            for (let x = 0; x <= canvas.width; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Horizontal lines
+            for (let y = 0; y <= canvas.height; y += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+        
+        function drawEmptyFloorplan() {
+            drawGrid();
+            
+            ctx.fillStyle = '#999';
+            ctx.font = '16px "Segoe UI"';
+            ctx.textAlign = 'center';
+            ctx.fillText('🏗 Click "Generate" to create floorplan', canvas.width/2, canvas.height/2);
+            ctx.font = '12px "Segoe UI"';
+            ctx.fillText('Enter plot dimensions and number of bedrooms', canvas.width/2, canvas.height/2 + 30);
+        }
+        
+        function drawRooms(rooms) {
+            drawGrid();
+            
+            // Find bounds for scaling
+            let maxX = 0, maxY = 0;
+            rooms.forEach(room => {
+                const right = room.x + (room.width || 100);
+                const bottom = room.y + (room.height || 90);
+                maxX = Math.max(maxX, right);
+                maxY = Math.max(maxY, bottom);
+            });
+            
+            // Add padding
+            maxX += 50;
+            maxY += 50;
+            
+            // Calculate scale to fit in canvas
+            const scaleX = (canvas.width - 100) / maxX;
+            const scaleY = (canvas.height - 100) / maxY;
+            const scale = Math.min(scaleX, scaleY, 1.5);
+            const offsetX = 50;
+            const offsetY = 50;
+            
+            // Draw each room
+            rooms.forEach(room => {
+                let color = '#D3D3D3';
+                if (room.name === 'Hall') color = colors.Hall;
+                else if (room.name === 'Kitchen') color = colors.Kitchen;
+                else if (room.name.includes('Bedroom')) color = colors.Bedroom;
+                else if (room.name.includes('Bathroom')) color = colors.Bathroom;
+                
+                const x = offsetX + (room.x * scale);
+                const y = offsetY + (room.y * scale);
+                const width = (room.width || 100) * scale;
+                const height = (room.height || 90) * scale;
+                
+                // Draw room rectangle
+                ctx.fillStyle = color;
+                ctx.fillRect(x, y, width, height);
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, width, height);
+                
+                // Draw room name
+                ctx.fillStyle = '#333';
+                ctx.font = `${Math.max(10, Math.min(14, 14 * scale))}px "Segoe UI"`;
+                ctx.textAlign = 'center';
+                
+                // Wrap text if too long
+                let roomName = room.name;
+                if (roomName.length > 10 && width < 60) {
+                    roomName = roomName.substring(0, 8) + '...';
+                }
+                ctx.fillText(roomName, x + width/2, y + height/2);
+                
+                // Draw dimensions
+                ctx.font = '10px "Segoe UI"';
+                ctx.fillStyle = '#666';
+                ctx.fillText(`${room.width || 100}'x${room.height || 90}'`, x + width/2, y + height - 5);
+            });
+            
+            // Draw scale bar
+            ctx.fillStyle = '#333';
+            ctx.font = '12px "Segoe UI"';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Scale: ${scale.toFixed(2)}px/ft`, 10, canvas.height - 10);
+        }
+        
+        async function checkServerStatus() {
+            const statusDiv = document.getElementById('serverStatus');
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                
+                const response = await fetch('http://localhost:5000/api/floorplan/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plotWidth: 30, plotDepth: 40, bedrooms: 3, vaastu: true }),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = '✅ Server ONLINE (CORS Enabled)';
+                    statusDiv.className = 'server-status online';
+                    return true;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '❌ Server OFFLINE - Run: npm start';
+                statusDiv.className = 'server-status offline';
+                return false;
+            }
+        }
+        
+        async function generateFloorplan() {
+            const plotWidth = parseInt(document.getElementById('plotWidth').value);
+            const plotDepth = parseInt(document.getElementById('plotDepth').value);
+            const bedrooms = parseInt(document.getElementById('bedrooms').value);
+            const vaastu = document.getElementById('vaastu').value === 'true';
+            
+            const loading = document.getElementById('loading');
+            const statusDiv = document.getElementById('status');
+            const roomInfoDiv = document.getElementById('roomInfo');
+            
+            loading.classList.add('active');
+            statusDiv.innerHTML = '';
+            
+            const requestBody = { plotWidth, plotDepth, bedrooms, vaastu };
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/floorplan/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDiv.innerHTML = '<div class="status success">✅ ' + data.message + '</div>';
+                    drawRooms(data.data.rooms);
+                    
+                    // Display room info
+                    const roomList = document.getElementById('roomList');
+                    roomList.innerHTML = '';
+                    data.data.rooms.forEach(room => {
+                        roomList.innerHTML += `
+                            <div class="room-item">
+                                <strong>${room.name}</strong><br>
+                                Position: (${room.x}, ${room.y})<br>
+                                Size: ${room.width || 100}' x ${room.height || 90}'
+                            </div>
+                        `;
+                    });
+                    roomInfoDiv.style.display = 'block';
+                } else {
+                    statusDiv.innerHTML = '<div class="status error">❌ Generation failed</div>';
+                    drawEmptyFloorplan();
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="status error">❌ Error: ' + error.message + '</div>';
+                drawEmptyFloorplan();
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+        
+        // Initialize
+        drawEmptyFloorplan();
+        checkServerStatus();
+        setInterval(checkServerStatus, 5000);
+    </script>
+</body>
+</html>
