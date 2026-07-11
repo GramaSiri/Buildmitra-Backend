@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Enquiry = require("../models/Enquiry");
+const MarketplaceListing = require("../models/MarketplaceListing");
 
 router.post("/", async (req, res) => {
   try {
@@ -8,15 +9,9 @@ router.post("/", async (req, res) => {
     const buyerName = String(req.body.buyerName || "").trim();
     const buyerPhone = String(req.body.buyerPhone || "").trim();
 
-    if (!providerUserCode) {
-      return res.status(400).json({ success: false, message: "providerUserCode is required" });
-    }
-    if (!buyerName) {
-      return res.status(400).json({ success: false, message: "buyerName is required" });
-    }
-    if (!buyerPhone) {
-      return res.status(400).json({ success: false, message: "buyerPhone is required" });
-    }
+    if (!providerUserCode) return res.status(400).json({ success: false, message: "providerUserCode is required" });
+    if (!buyerName) return res.status(400).json({ success: false, message: "buyerName is required" });
+    if (!buyerPhone) return res.status(400).json({ success: false, message: "buyerPhone is required" });
 
     const count = await Enquiry.countDocuments();
     const enquiryCode = "ENQ-" + String(count + 1).padStart(6, "0");
@@ -29,6 +24,47 @@ router.post("/", async (req, res) => {
       buyerPhone
     });
 
+    res.json({ success: true, enquiry });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get("/code/:enquiryCode", async (req, res) => {
+  try {
+    let enquiry = await Enquiry.findOne({ enquiryCode: req.params.enquiryCode }).lean();
+    if (!enquiry) return res.status(404).json({ success: false, message: "Enquiry not found" });
+
+    const listing = await MarketplaceListing.findOne({
+      providerUserCode: enquiry.providerUserCode,
+      itemName: enquiry.itemName,
+      status: "approved",
+      isActive: true,
+      isBlocked: false
+    }).lean();
+
+    if (listing) {
+      enquiry.uploadedRate = listing.rate;
+      enquiry.uploadedUnit = listing.unit;
+      enquiry.gst = listing.gst;
+      enquiry.listingCode = listing.listingCode;
+      enquiry.masterItemCode = listing.masterItemCode;
+    }
+
+    res.json({ success: true, enquiry });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.put("/code/:enquiryCode/reject", async (req, res) => {
+  try {
+    const enquiry = await Enquiry.findOneAndUpdate(
+      { enquiryCode: req.params.enquiryCode },
+      { status: "Rejected", quoteMessage: req.body.reason || "Rejected by supplier" },
+      { new: true }
+    );
+    if (!enquiry) return res.status(404).json({ success: false, message: "Enquiry not found" });
     res.json({ success: true, enquiry });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -53,6 +89,7 @@ router.put("/:id/quote", async (req, res) => {
     if (req.body.quotedAmount === undefined || req.body.quotedAmount === null || req.body.quotedAmount === "") {
       return res.status(400).json({ success: false, message: "quotedAmount is required" });
     }
+
     const enquiry = await Enquiry.findByIdAndUpdate(
       req.params.id,
       {
@@ -64,9 +101,7 @@ router.put("/:id/quote", async (req, res) => {
       { new: true }
     );
 
-    if (!enquiry) {
-      return res.status(404).json({ success: false, message: "Enquiry not found" });
-    }
+    if (!enquiry) return res.status(404).json({ success: false, message: "Enquiry not found" });
 
     res.json({ success: true, enquiry });
   } catch (err) {

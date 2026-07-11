@@ -12,11 +12,6 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
-
-// Serve static images
-app.use('/images', express.static('D:/images/Desktop/BMFrontend-2026-07-04/public/images'));
-
-// Serve static images from frontend
 app.use(express.urlencoded({ extended: true }));
 
 // Database Connection
@@ -47,10 +42,6 @@ app.use('/api/master/equipment', require('./routes/master/equipment'));
 
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/rates', require('./routes/rates'));
-
-// ✅ FIX: Added Product Routes
-app.use('/api/products', require('./routes/products'));
-app.use('/api/marketplace', require('./routes/marketplace'));
 
 // Health Check
 app.get('/api/health', (req, res) => {
@@ -86,24 +77,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Update enquiry endpoint
-app.put('/api/enquiry/update/:enquiryCode', async (req, res) => {
-  try {
-    const Enquiry = require('./models/Enquiry');
-    const enquiry = await Enquiry.findOneAndUpdate(
-      { enquiryCode: req.params.enquiryCode },
-      { $set: req.body },
-      { new: true }
-    );
-    if (!enquiry) {
-      return res.status(404).json({ success: false, message: 'Enquiry not found' });
-    }
-    res.json({ success: true, enquiry });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log('🚀 Server running on http://localhost:' + PORT);
@@ -117,10 +90,8 @@ app.listen(PORT, () => {
   console.log('   - GET  /api/guidelines');
   console.log('   - POST /api/auth/register');
   console.log('   - POST /api/auth/login');
-  console.log('   - GET  /api/products');
-  console.log('   - GET  /api/products/categories/all');
 });
 
 module.exports = app;
 
-
+app.use("/api/marketplace", require("./routes/marketplace"));

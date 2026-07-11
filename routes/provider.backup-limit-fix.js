@@ -14,7 +14,7 @@ const {
 router.get("/master-items", async (req, res) => {
   try {
     const page = Math.max(1, Number(req.query.page || 1));
-    const limit = Math.min(5000, Math.max(1, Number(req.query.limit || 100)));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit || 25)));
     const filter = buildMasterFilter(req.query);
     const [items, total] = await Promise.all([
       MasterItem.find(filter).sort({ category: 1, itemName: 1 }).skip((page - 1) * limit).limit(limit),
@@ -137,4 +137,3 @@ router.get("/new-item-requests/:providerUserCode", async (req, res) => {
 });
 
 module.exports = router;
-

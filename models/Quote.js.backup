@@ -8,17 +8,12 @@ const QuoteSchema = new mongoose.Schema({
   providerName: String,
   providerPhone: String,
 
-  rate: Number,
-  quantity: Number,
-  totalAmount: Number,
+  rate: String,
+  quantity: String,
+  totalAmount: String,
   deliveryTime: String,
   terms: String,
   remarks: String,
-
-  attachmentUrl: { type: String },
-  attachmentName: { type: String },
-  attachmentSize: { type: String },
-  attachmentType: { type: String },
 
   status: {
     type: String,

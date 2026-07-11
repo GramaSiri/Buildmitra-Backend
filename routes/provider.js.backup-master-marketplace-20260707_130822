@@ -1,0 +1,144 @@
+const express = require("express");
+const router = express.Router();
+const MarketplaceListing = require("../models/MarketplaceListing");
+
+function cleanText(v) {
+  return String(v || "").trim();
+}
+
+function makeListingCode(itemType, itemName, brand, count) {
+  const clean = (v) => String(v || "").replace(/[^a-zA-Z]/g, "").toUpperCase();
+  const itemPart = clean(itemName).slice(0, 3).padEnd(3, "X");
+  const brandPart = clean(brand || itemName).slice(0, 1).padEnd(1, "X");
+  const num = String(count + 1).padStart(6, "0");
+  return `${itemPart}${brandPart}${num}`;
+}
+
+function normalizeItemType(value) {
+  const v = cleanText(value).toLowerCase();
+  if (["material", "materials", "supplier", "vendor"].includes(v)) return "material";
+  if (["service", "services", "contractor"].includes(v)) return "service";
+  if (["machine", "machinery", "machinehire", "equipment"].includes(v)) return "machine";
+  if (["labour", "labor", "laboursupply", "worker"].includes(v)) return "labour";
+  return "material";
+}
+
+function normalizeProviderRole(value, itemType) {
+  const v = cleanText(value).toLowerCase();
+  if (["supplier", "contractor", "vendor", "machinehire", "laboursupply"].includes(v)) return v;
+  if (itemType === "service") return "contractor";
+  if (itemType === "machine") return "machinehire";
+  if (itemType === "labour") return "laboursupply";
+  return "supplier";
+}
+
+// Provider uploads listing. Goes to Admin as pending.
+router.post("/listing", async (req, res) => {
+  try {
+    const body = req.body || {};
+
+    const itemType = normalizeItemType(body.itemType);
+    const providerRole = normalizeProviderRole(body.providerRole, itemType);
+
+    const itemName = cleanText(body.itemName);
+    const providerUserCode = cleanText(body.providerUserCode);
+    const providerName = cleanText(body.providerName);
+
+    if (!itemName) {
+      return res.status(400).json({ success: false, message: "itemName is required" });
+    }
+
+    if (!providerUserCode) {
+      return res.status(400).json({ success: false, message: "providerUserCode is required" });
+    }
+
+    if (!providerName) {
+      return res.status(400).json({ success: false, message: "providerName is required" });
+    }
+
+    const count = await MarketplaceListing.countDocuments({ itemType });
+
+    const listing = await MarketplaceListing.create({
+      listingCode: cleanText(body.listingCode) || makeListingCode(itemType, itemName, body.brand, count),
+
+      itemType,
+      category: cleanText(body.category),
+      subCategory: cleanText(body.subCategory),
+      itemName,
+      brand: cleanText(body.brand),
+      specification: cleanText(body.specification),
+      description: cleanText(body.description),
+
+      unit: cleanText(body.unit),
+      rate: Number(body.rate || 0),
+      gst: Number(body.gst || 0),
+
+      providerUserCode,
+      providerRole,
+      providerName,
+      providerPhone: cleanText(body.providerPhone),
+
+      location: cleanText(body.location),
+      pincode: cleanText(body.pincode),
+      serviceArea: cleanText(body.serviceArea),
+
+      imageUrl: cleanText(body.imageUrl),
+      documentUrl: cleanText(body.documentUrl),
+
+      status: "pending",
+      isActive: true,
+      isBlocked: false,
+      submittedBy: providerUserCode,
+    });
+
+    res.json({
+      success: true,
+      message: "Listing submitted for admin approval",
+      listing,
+    });
+  } catch (error) {
+    console.error("Provider upload listing error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Provider sees own uploaded listings.
+router.get("/my-listings/:providerUserCode", async (req, res) => {
+  try {
+    const listings = await MarketplaceListing.find({
+      providerUserCode: req.params.providerUserCode,
+    }).sort({ createdAt: -1 });
+
+    res.json({ success: true, listings });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+
+// Public: approved marketplace listings
+router.get("/marketplace-listings", async (req, res) => {
+  try {
+    const MarketplaceListing = require("../models/MarketplaceListing");
+
+    const listings = await MarketplaceListing.find({
+      status: "approved",
+      isActive: true,
+      isBlocked: { $ne: true }
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: listings.length,
+      listings
+    });
+  } catch (err) {
+    console.error("Provider marketplace listings error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
+module.exports = router;

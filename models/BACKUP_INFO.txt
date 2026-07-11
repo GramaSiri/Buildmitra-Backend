@@ -1,0 +1,31 @@
+===========================================
+QUOTE SYSTEM - BACKUP INFORMATION
+===========================================
+Date: 2026-07-10 17:39:50
+Backup Folder: D:\images\Desktop\Quote_Files_Backup_2026-07-10_17-39
+
+===========================================
+FILES INCLUDED IN THIS BACKUP
+===========================================
+1. Quote.js - Quote schema model
+2. Counter.js - Auto-increment counter model  
+3. quote.js - All quote routes/endpoints
+4. server.js - Main server file (with route registration)
+5. test-quote.js - Test script
+
+===========================================
+ENDPOINTS CREATED
+===========================================
+POST   /api/quote/create
+GET    /api/quote/enquiry/:enquiryCode
+GET    /api/quote/provider/:providerUserCode
+GET    /api/quote/all
+
+===========================================
+DATABASE COLLECTIONS
+===========================================
+- quotes (5 documents)
+- enquiries (updated with quoted data)
+- counters (QTE sequence)
+
+===========================================

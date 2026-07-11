@@ -200,7 +200,6 @@ const {
   buildMasterFilter,
   createOrUpdateMasterItem,
 } = require("../services/marketplaceService");
-const { importMaterialExcel } = require("../services/materialExcelImport");
 
 function listingIdentity(id) {
   return { $or: [{ listingCode: id }, { _id: /^[a-f\d]{24}$/i.test(id) ? id : undefined }].filter((x) => Object.values(x)[0]) };
@@ -272,23 +271,6 @@ router.post("/master-items/default-load", requireAdmin, async (req, res) => {
       items.push(await createOrUpdateMasterItem(row, req.body?.adminCode || "admin"));
     }
     res.json({ success: true, count: items.length, items });
-  } catch (error) {
-    res.status(error.status || 500).json({ success: false, message: error.message });
-  }
-});
-
-router.post("/master-items/import-material-excel", requireAdmin, async (req, res) => {
-  try {
-    const filePath = req.body?.filePath || path.join(__dirname, "../data/BuildMitra_Master_Materials_Clean_Import.xlsx");
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: "Material Excel file not found",
-        expectedPath: filePath,
-      });
-    }
-    const result = await importMaterialExcel(filePath, req.body?.adminCode || "admin");
-    res.json(result);
   } catch (error) {
     res.status(error.status || 500).json({ success: false, message: error.message });
   }

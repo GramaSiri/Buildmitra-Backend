@@ -1,99 +1,73 @@
-const { pool } = require("../../config/database");
+const MasterMaterial = require("../../models/MasterMaterial");
+
+function normalizeMaterial(m = {}, index = 0) {
+  const code = m.material_code || m.masterCode || `MAT-${Date.now()}-${index}`;
+
+  return {
+    material_code: code,
+    masterCode: code,
+    product_name: m.product_name || m.itemName || m.name || "",
+    itemName: m.itemName || m.product_name || m.name || "",
+    category: m.category || "General",
+    subcategory: m.subcategory || "",
+    brand: m.brand || "",
+    specification: m.specification || m.description || "",
+    unit: m.unit || "",
+    rate: Number(m.rate || 0),
+    gst: Number(m.gst || 0),
+    stock: Number(m.stock || 0),
+    min_order: Number(m.min_order || 0),
+    image: m.image || m.imageUrl || "",
+    imageUrl: m.imageUrl || m.image || "",
+    description: m.description || m.specification || "",
+    status: m.status || "Active"
+  };
+}
 
 async function getAllMaterials() {
-  const [rows] = await pool.query(
-    "SELECT * FROM material_master ORDER BY product_name"
-  );
-  return rows;
+  return await MasterMaterial.find({ status: { $ne: "Deleted" } })
+    .sort({ product_name: 1 })
+    .lean();
 }
 
 async function addMaterial(material) {
-  const sql = `
-    INSERT INTO material_master
-    (material_code, product_name, category, brand, unit, rate, gst, stock, min_order, description, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  const values = [
-    material.material_code || `MAT-${Date.now()}`,
-    material.product_name,
-    material.category || "General",
-    material.brand || "",
-    material.unit || "",
-    Number(material.rate || 0),
-    Number(material.gst || 0),
-    Number(material.stock || 0),
-    Number(material.min_order || 0),
-    material.description || "",
-    material.status || "Active"
-  ];
-
-  const [result] = await pool.query(sql, values);
-  return result;
+  const doc = normalizeMaterial(material);
+  return await MasterMaterial.create(doc);
 }
 
 async function bulkAddMaterials(items) {
   if (!items || !items.length) return { inserted: 0 };
 
-  const sql = `
-    INSERT INTO material_master
-    (material_code, product_name, category, brand, unit, rate, gst, stock, min_order, description, status)
-    VALUES ?
-    ON DUPLICATE KEY UPDATE
-      product_name=VALUES(product_name),
-      category=VALUES(category),
-      brand=VALUES(brand),
-      unit=VALUES(unit),
-      rate=VALUES(rate),
-      gst=VALUES(gst),
-      stock=VALUES(stock),
-      min_order=VALUES(min_order),
-      description=VALUES(description),
-      status=VALUES(status)
-  `;
+  let inserted = 0;
 
-  const values = items.map((m, i) => [
-    m.material_code || `MAT-${Date.now()}-${i}`,
-    m.product_name,
-    m.category || "General",
-    m.brand || "",
-    m.unit || "",
-    Number(m.rate || 0),
-    Number(m.gst || 0),
-    Number(m.stock || 0),
-    Number(m.min_order || 0),
-    m.description || "",
-    m.status || "Active"
-  ]);
+  for (let i = 0; i < items.length; i++) {
+    const doc = normalizeMaterial(items[i], i);
 
-  const [result] = await pool.query(sql, [values]);
-  return { inserted: values.length, result };
+    if (!doc.product_name) continue;
+
+    await MasterMaterial.updateOne(
+      { material_code: doc.material_code },
+      { $set: doc },
+      { upsert: true }
+    );
+
+    inserted++;
+  }
+
+  return { inserted };
 }
 
 async function updateMaterial(id, material) {
-  const sql = `
-    UPDATE material_master
-    SET product_name=?, category=?, brand=?, unit=?, rate=?, gst=?, stock=?, min_order=?, description=?, status=?
-    WHERE id=?
-  `;
-
-  await pool.query(sql, [
-    material.product_name,
-    material.category,
-    material.brand,
-    material.unit,
-    Number(material.rate || 0),
-    Number(material.gst || 0),
-    Number(material.stock || 0),
-    Number(material.min_order || 0),
-    material.description || "",
-    material.status || "Active",
-    id
-  ]);
+  const doc = normalizeMaterial(material);
+  return await MasterMaterial.findByIdAndUpdate(id, doc, { new: true });
 }
 
 async function deleteMaterial(id) {
-  await pool.query("DELETE FROM material_master WHERE id=?", [id]);
+  return await MasterMaterial.findByIdAndUpdate(
+    id,
+    { status: "Deleted" },
+    { new: true }
+  );
 }
 
 module.exports = {
