@@ -48,14 +48,15 @@ app.use('/api/master/equipment', require('./routes/master/equipment'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/rates', require('./routes/rates'));
 
-// ✅ FIX: Added Product Routes
+// Product Routes
 app.use('/api/products', require('./routes/products'));
 app.use('/api/marketplace', require('./routes/marketplace'));
 
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({ 
-    status: 'OK', deployment: 'buildmitra-auth-v2', 
+    status: 'OK', 
+    deployment: 'buildmitra-auth-v2', 
     timestamp: new Date().toISOString(),
     message: 'BuildMitra Backend is running!'
   });
@@ -122,8 +123,3 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
-
-
-
-
-
