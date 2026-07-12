@@ -1,0 +1,9 @@
+*.ts
+*.tsx
+index.ts
+src/
+tsconfig.json
+.git/
+.github/
+README.md
+*.log
