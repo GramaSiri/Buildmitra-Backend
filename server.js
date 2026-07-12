@@ -8,7 +8,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001', 'https://buildmitra.vercel.app'],
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://192.168.31.248:3000', 'https://buildmitra.vercel.app'],
   credentials: true
 }));
 app.use(express.json());
@@ -122,6 +122,8 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
+
 
 
 
