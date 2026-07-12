@@ -55,7 +55,7 @@ app.use('/api/marketplace', require('./routes/marketplace'));
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({ 
-    status: 'OK', 
+    status: 'OK', deployment: 'buildmitra-auth-v2', 
     timestamp: new Date().toISOString(),
     message: 'BuildMitra Backend is running!'
   });
@@ -122,5 +122,6 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
 
 
