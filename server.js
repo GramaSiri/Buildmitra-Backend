@@ -106,7 +106,7 @@ app.put('/api/enquiry/update/:enquiryCode', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log('🚀 Server running on http://localhost:' + PORT);
   console.log('📊 Health Check: http://localhost:' + PORT + '/api/health');
   console.log('📚 Available endpoints:');
@@ -124,3 +124,4 @@ app.listen(PORT, () => {
 
 module.exports = app;
 // Force redeploy
+
