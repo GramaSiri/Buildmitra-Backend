@@ -47,9 +47,18 @@ router.post('/register', async (req, res) => {
       pincode
     } = req.body;
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({
+      $or: [
+        { email: email },
+        { phone: phone }
+      ]
+    });
+
     if (existingUser) {
-      return res.status(400).json({ success: false, message: 'User already exists' });
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists'
+      });
     }
 
     const user = new User({
@@ -70,14 +79,25 @@ router.post('/register', async (req, res) => {
     await user.save();
 
     const token = jwt.sign(
-      { userId: user._id, userCode: user.userCode, businessRole: user.businessRole },
+      {
+        userId: user._id,
+        userCode: user.userCode,
+        businessRole: user.businessRole
+      },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    res.json({ success: true, token, user: safeUser(user) });
+    res.json({
+      success: true,
+      token,
+      user: safeUser(user)
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
@@ -85,7 +105,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, phone, phoneOrEmail, password } = req.body;
-    const loginId = email || phone || phoneOrEmail;
+    const loginId = String(email || phone || phoneOrEmail || "").trim();
 
     const user = await User.findOne({
       $or: [
@@ -93,29 +113,130 @@ router.post('/login', async (req, res) => {
         { phone: loginId }
       ]
     });
+
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
     }
 
     const isMatch = await user.comparePassword(password);
+
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
     }
 
     const token = jwt.sign(
-      { userId: user._id, userCode: user.userCode, businessRole: user.businessRole },
+      {
+        userId: user._id,
+        userCode: user.userCode,
+        businessRole: user.businessRole
+      },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    res.json({ success: true, token, user: safeUser(user) });
+    res.json({
+      success: true,
+      token,
+      user: safeUser(user)
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Check whether a registered phone exists
+router.post('/forgot-password/check-phone', async (req, res) => {
+  try {
+    const phone = String(req.body.phone || "").trim();
+
+    if (!phone || phone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Enter a valid registered mobile number'
+      });
+    }
+
+    const user = await User.findOne({ phone });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user found with this mobile number'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Mobile number verified',
+      betaOtp: '123456'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Reset password - temporary beta OTP flow
+router.post('/forgot-password/reset', async (req, res) => {
+  try {
+    const phone = String(req.body.phone || "").trim();
+    const otp = String(req.body.otp || "").trim();
+    const newPassword = String(req.body.newPassword || "");
+
+    if (!phone || phone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Enter a valid registered mobile number'
+      });
+    }
+
+    if (otp !== '123456') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP'
+      });
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    const user = await User.findOne({ phone });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No user found with this mobile number'
+      });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password reset successful'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
 module.exports = router;
-
-
-
-
