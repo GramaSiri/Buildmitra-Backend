@@ -51,6 +51,7 @@ app.use('/api/rates', require('./routes/rates'));
 // Product Routes
 app.use('/api/products', require('./routes/products'));
 app.use('/api/marketplace', require('./routes/marketplace'));
+app.use('/api/realestate', require('./routes/realestate'));
 
 // Health Check
 app.get('/api/health', (req, res) => {
@@ -124,5 +125,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 module.exports = app;
 // Force redeploy
+
+
 
 
