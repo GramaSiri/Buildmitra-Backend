@@ -88,9 +88,7 @@ async function createOrUpdateMasterItem(body, adminCode = "admin") {
   const itemType = normalizeItemType(body.itemType);
   const masterItemCode = await ensureMasterItemCode(itemType, body.masterItemCode || body.code);
   const category = cleanText(body.category);
-  const imageUrl = itemType === "material"
-    ? defaultImageFor(category, itemType)
-    : (cleanText(body.imageUrl) || defaultImageFor(category, itemType));
+  const imageUrl = cleanText(body.imageUrl || body.productImage || body.image) || defaultImageFor(category, itemType);
 
   const update = {
     masterItemCode,
@@ -99,54 +97,27 @@ async function createOrUpdateMasterItem(body, adminCode = "admin") {
     subCategory: cleanText(body.subCategory),
     itemName: cleanText(body.itemName || body.name || body.item),
     brand: cleanText(body.brand),
-    specification: cleanText(body.specification || body.description),
-    unit: cleanText(body.unit || body.uom || body.UOM),
-    gst: Number(body.gst || body.GST || 0),
-    hsnCode: cleanText(body.hsnCode || body.HSN || body.hsn),
+    specification: cleanText(body.specification || body.spec),
+    unit: cleanText(body.unit),
+    rate: Number(body.rate || 0),
+    gst: Number(body.gst || 0),
+    hsnCode: cleanText(body.hsnCode || body.hsn),
     imageUrl,
-    referenceRate: Number(body.referenceRate || body.price || body.rate || 0),
-    status: cleanText(body.status || body.active || "active").toLowerCase() === "inactive" ? "inactive" : "active",
-    updatedBy: adminCode,
+    status: "active",
+    createdBy: adminCode,
   };
-
-  if (!update.itemName) {
-    const err = new Error("itemName is required");
-    err.status = 400;
-    throw err;
-  }
 
   return MasterItem.findOneAndUpdate(
     { masterItemCode },
-    { $set: update, $setOnInsert: { createdBy: adminCode } },
-    { new: true, upsert: true, runValidators: true }
+    { $set: update },
+    { new: true, upsert: true }
   );
 }
 
-function buildMasterFilter(query = {}) {
-  const filter = {};
-  if (query.itemType) filter.itemType = normalizeItemType(query.itemType);
-  if (query.category) filter.category = new RegExp(cleanText(query.category), "i");
-  if (query.subCategory) filter.subCategory = new RegExp(cleanText(query.subCategory), "i");
-  if (query.brand) filter.brand = new RegExp(cleanText(query.brand), "i");
-  if (query.status) filter.status = cleanText(query.status).toLowerCase();
-  else filter.status = "active";
-  if (query.search) {
-    const q = cleanText(query.search);
-    filter.$or = [
-      { masterItemCode: new RegExp(q, "i") },
-      { itemName: new RegExp(q, "i") },
-      { brand: new RegExp(q, "i") },
-      { category: new RegExp(q, "i") },
-      { specification: new RegExp(q, "i") },
-    ];
-  }
-  return filter;
-}
-
 async function findUserProfile(body = {}) {
-  const code = cleanText(body.providerUserCode || body.userCode || body.uniqueCode).toUpperCase();
-  if (code) {
-    const user = await User.findOne({ userCode: code }).select("-password");
+  if (body.providerUserCode || body.userCode) {
+    const userCode = cleanText(body.providerUserCode || body.userCode).toUpperCase();
+    const user = await User.findOne({ userCode }).select("-password");
     if (user) return user;
   }
   if (body.providerPhone || body.phone) {
@@ -213,6 +184,42 @@ async function upsertProviderListing(body = {}) {
     throw err;
   }
 
+  // Handle Target 2 Canonical Images & Legacy Image URLs
+  const rawImages = Array.isArray(body.images) ? body.images : [];
+  let formattedImages = rawImages.map((img, idx) => {
+    if (typeof img === "string") {
+      return { url: img, isPrimary: idx === 0, alt: masterItem.itemName };
+    }
+    return {
+      url: cleanText(img.url || img.imageUrl || img.image),
+      publicId: cleanText(img.publicId || ""),
+      alt: cleanText(img.alt || masterItem.itemName),
+      isPrimary: Boolean(img.isPrimary || idx === 0)
+    };
+  }).filter((img) => img.url);
+
+  const customSingleUrl = cleanText(body.imageUrl || body.productImage || body.image);
+  if (customSingleUrl && !formattedImages.some((i) => i.url === customSingleUrl)) {
+    formattedImages.unshift({
+      url: customSingleUrl,
+      publicId: "",
+      alt: masterItem.itemName,
+      isPrimary: true
+    });
+  }
+
+  if (formattedImages.length === 0 && masterItem.imageUrl) {
+    formattedImages.push({
+      url: masterItem.imageUrl,
+      publicId: "",
+      alt: masterItem.itemName,
+      isPrimary: true
+    });
+  }
+
+  const primaryObj = formattedImages.find((i) => i.isPrimary) || formattedImages[0];
+  const finalImageUrl = primaryObj ? primaryObj.url : defaultImageFor(masterItem.category, masterItem.itemType);
+
   const pending = await MarketplaceListing.findOne({
     masterItemCode,
     providerUserCode: provider.providerUserCode,
@@ -232,7 +239,8 @@ async function upsertProviderListing(body = {}) {
     unit: masterItem.unit,
     gst: masterItem.gst,
     hsnCode: masterItem.hsnCode,
-    imageUrl: masterItem.imageUrl || defaultImageFor(masterItem.category, masterItem.itemType),
+    imageUrl: finalImageUrl,
+    images: formattedImages.length > 0 ? formattedImages : [{ url: finalImageUrl, isPrimary: true, alt: masterItem.itemName }],
     rate,
     ...provider,
     documentUrl: cleanText(body.documentUrl),
@@ -278,59 +286,70 @@ function buildListingFilter(query = {}, publicOnly = false) {
   if (query.search) {
     const q = cleanText(query.search);
     filter.$or = [
-      { masterItemCode: new RegExp(q, "i") },
       { itemName: new RegExp(q, "i") },
+      { masterItemCode: new RegExp(q, "i") },
       { brand: new RegExp(q, "i") },
       { category: new RegExp(q, "i") },
       { providerName: new RegExp(q, "i") },
       { providerCity: new RegExp(q, "i") },
-      { providerPincode: new RegExp(q, "i") },
     ];
   }
   return filter;
 }
 
 async function createNewItemRequest(body = {}) {
-  const user = await findUserProfile(body);
-  const itemType = normalizeItemType(body.itemType);
-  const provider = providerSnapshot(user, body, itemType);
-  if (!provider.providerUserCode) {
-    const err = new Error("providerUserCode is required");
-    err.status = 400;
-    throw err;
-  }
-  const proposedItemName = cleanText(body.proposedItemName || body.itemName);
+  const proposedItemName = cleanText(body.proposedItemName || body.itemName || body.name);
   if (!proposedItemName) {
     const err = new Error("proposedItemName is required");
     err.status = 400;
     throw err;
   }
-
+  const user = await findUserProfile(body);
+  const provider = providerSnapshot(user, body, body.itemType);
+  if (!provider.providerUserCode) {
+    const err = new Error("providerUserCode is required");
+    err.status = 400;
+    throw err;
+  }
+  const requestCode = await nextCode("REQ");
   return NewItemRequest.create({
-    requestCode: await nextCode("NIR"),
+    requestCode,
+    itemType: normalizeItemType(body.itemType),
+    category: cleanText(body.category),
+    subCategory: cleanText(body.subCategory),
     proposedItemName,
-    itemType,
     brand: cleanText(body.brand),
     specification: cleanText(body.specification),
-    imageUrl: cleanText(body.imageUrl) || defaultImageFor(body.category, itemType),
+    unit: cleanText(body.unit),
+    imageUrl: cleanText(body.imageUrl),
+    images: Array.isArray(body.images) ? body.images : (body.imageUrl ? [{ url: body.imageUrl, isPrimary: true }] : []),
     remarks: cleanText(body.remarks),
-    providerUserCode: provider.providerUserCode,
-    providerRole: provider.providerRole,
-    providerName: provider.providerName,
-    providerPhone: provider.providerPhone,
+    ...provider,
+    status: "pending",
   });
 }
 
 module.exports = {
-  DEFAULT_IMAGES,
-  cleanText,
-  normalizeItemType,
-  normalizeProviderRole,
-  defaultImageFor,
   createOrUpdateMasterItem,
-  buildMasterFilter,
   upsertProviderListing,
+  buildMasterFilter: (query = {}) => {
+    const filter = {};
+    if (query.status && query.status !== "all") filter.status = cleanText(query.status).toLowerCase();
+    if (query.itemType) filter.itemType = normalizeItemType(query.itemType);
+    if (query.category) filter.category = new RegExp(cleanText(query.category), "i");
+    if (query.subCategory) filter.subCategory = new RegExp(cleanText(query.subCategory), "i");
+    if (query.brand) filter.brand = new RegExp(cleanText(query.brand), "i");
+    if (query.search) {
+      const q = cleanText(query.search);
+      filter.$or = [
+        { itemName: new RegExp(q, "i") },
+        { masterItemCode: new RegExp(q, "i") },
+        { brand: new RegExp(q, "i") },
+        { category: new RegExp(q, "i") },
+      ];
+    }
+    return filter;
+  },
   buildListingFilter,
   createNewItemRequest,
-  nextCode,
 };
