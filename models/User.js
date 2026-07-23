@@ -15,8 +15,8 @@ const ROLE_PREFIX = {
 
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  phone: { type: String },
+  email: { type: String, required: false, unique: true, sparse: true, default: undefined },
+  phone: { type: String, required: true, unique: true, index: true },
 
  companyName: { type: String, default: "" },
 gstNo: { type: String, default: "" },
@@ -39,6 +39,57 @@ pincode: { type: String, default: "" },
   isVerified: { type: Boolean, default: false },
 
   isActive: { type: Boolean, default: true },
+
+  subscriptionPlan: {
+    type: String,
+    enum: ['basic', 'professional', 'business'],
+    default: 'basic'
+  },
+
+  subscriptionBilling: {
+    type: String,
+    enum: ['monthly', 'annual'],
+    default: 'monthly'
+  },
+
+  subscriptionStatus: {
+    type: String,
+    enum: ['pending', 'active', 'expired', 'cancelled'],
+    default: 'pending'
+  },
+
+  paymentStatus: {
+    type: String,
+    enum: ['not_required', 'pending', 'approved', 'rejected'],
+    default: 'not_required'
+  },
+
+  activationType: {
+    type: String,
+    enum: ['beta_free', 'paid', 'pending'],
+    default: 'pending'
+  },
+
+  subscriptionStart: {
+    type: Date,
+    default: null
+  },
+
+  subscriptionExpiry: {
+    type: Date,
+    default: null
+  },
+
+  lastPaymentDate: {
+    type: Date,
+    default: null
+  },
+
+  adminRemarks: {
+    type: String,
+    default: ''
+  },
+
   isMarketplaceVisible: { type: Boolean, default: true },
   blockedReason: { type: String, default: "" },
   assignedProjects: [{
@@ -81,3 +132,5 @@ UserSchema.methods.comparePassword = async function(candidatePassword) {
 };
 
 module.exports = mongoose.model('User', UserSchema);
+
+

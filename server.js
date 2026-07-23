@@ -13,14 +13,17 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Serve static images
-app.use('/images', express.static('D:/images/Desktop/BMFrontend-2026-07-04/public/images'));
-
-// Serve static images from frontend
+// Serve static uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.urlencoded({ extended: true }));
 
 // Database Connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/buildmitra';
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI is required. Backend stopped to prevent connection to the wrong database.');
+  process.exit(1);
+}
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB Connected Successfully'))
   .catch(err => {
@@ -125,6 +128,7 @@ app.listen(PORT, "0.0.0.0", () => {
 
 module.exports = app;
 // Force redeploy
+
 
 
 
