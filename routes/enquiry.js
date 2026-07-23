@@ -34,7 +34,15 @@ function requireAdmin(req, res, next) {
 }
 
 function requireUserCode(req, res, next) {
-  const userCode = text(req.headers["x-user-code"]);
+  const userCode = text(
+    req.headers["x-user-code"] ||
+    req.query.providerUserCode ||
+    req.query.buyerUserCode ||
+    req.query.userCode ||
+    req.body.userCode ||
+    req.body.providerUserCode ||
+    req.body.buyerUserCode
+  );
   if (!userCode) {
     return res.status(401).json({ success: false, message: "x-user-code is required" });
   }
@@ -391,14 +399,17 @@ router.put("/admin/:enquiryCode/reject", requireAdmin, async (req, res) => {
   }
 });
 
-// Provider dashboard: only enquiries explicitly released/assigned by Admin.
+// Provider dashboard: enquiries matching providerUserCode OR assignedProviderUserCode.
 router.get("/provider/my", requireUserCode, async (req, res) => {
   try {
+    const userCode = text(req.query.providerUserCode || req.userCode);
+    const regex = new RegExp("^" + userCode.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") + "$", "i");
     const enquiries = await Enquiry.find({
-      assignedProviderUserCode: req.userCode,
-      contactReleased: true,
-      adminApprovalStatus: { $in: ["approved", "assigned"] },
-    }).sort({ createdAt: -1 });
+      $or: [
+        { providerUserCode: regex },
+        { assignedProviderUserCode: regex }
+      ]
+    }).sort({ createdAt: -1 }).lean();
     return res.json({ success: true, count: enquiries.length, enquiries });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -408,7 +419,21 @@ router.get("/provider/my", requireUserCode, async (req, res) => {
 // Buyer dashboard: buyer may view their own enquiry and current status.
 router.get("/buyer/my", requireUserCode, async (req, res) => {
   try {
-    const enquiries = await Enquiry.find({ buyerUserCode: req.userCode })
+    const userCode = text(req.query.buyerUserCode || req.userCode);
+    const regex = new RegExp("^" + userCode.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") + "$", "i");
+    
+    // Also match buyer phone if user model exists
+    const user = await User.findOne({ userCode: regex }).lean();
+    const userPhone = user ? normalisePhone(user.phone) : "";
+
+    const filter = {
+      $or: [
+        { buyerUserCode: regex },
+        ...(userPhone ? [{ buyerPhone: userPhone }] : [])
+      ]
+    };
+
+    const enquiries = await Enquiry.find(filter)
       .sort({ createdAt: -1 })
       .lean();
     return res.json({ success: true, count: enquiries.length, enquiries });
@@ -425,7 +450,8 @@ router.get("/code/:enquiryCode", requireUserCode, async (req, res) => {
     const isAdmin = String(req.headers["x-user-role"] || "").toLowerCase() === "admin";
     const isBuyer = enquiry.buyerUserCode && enquiry.buyerUserCode === req.userCode;
     const isAssignedProvider =
-      enquiry.contactReleased && enquiry.assignedProviderUserCode === req.userCode;
+      (enquiry.providerUserCode && enquiry.providerUserCode === req.userCode) ||
+      (enquiry.contactReleased && enquiry.assignedProviderUserCode === req.userCode);
 
     if (!isAdmin && !isBuyer && !isAssignedProvider) {
       return res.status(403).json({ success: false, message: "Enquiry access not permitted" });
@@ -457,10 +483,12 @@ router.get("/code/:enquiryCode", requireUserCode, async (req, res) => {
   }
 });
 
-// Legacy list endpoint is now access-controlled.
+// Central list endpoint for both buyer and provider query calls.
 router.get("/", requireUserCode, async (req, res) => {
   try {
     const isAdmin = String(req.headers["x-user-role"] || "").toLowerCase() === "admin";
+    const reqCode = text(req.query.providerUserCode || req.query.buyerUserCode || req.userCode);
+    const regex = new RegExp("^" + reqCode.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") + "$", "i");
     const filter = {};
 
     if (isAdmin) {
@@ -468,22 +496,25 @@ router.get("/", requireUserCode, async (req, res) => {
       if (req.query.buyerUserCode) filter.buyerUserCode = req.query.buyerUserCode;
       if (req.query.enquiryCategory) filter.enquiryCategory = req.query.enquiryCategory;
       if (req.query.propertyCode) filter.propertyCode = req.query.propertyCode;
-    } else if (req.query.buyerUserCode === req.userCode) {
-      filter.buyerUserCode = req.userCode;
-    } else if (req.query.providerUserCode === req.userCode) {
-      // Restore existing enquiries created for this provider.
-      // This keeps yesterday's records visible without changing MongoDB data.
-      filter.providerUserCode = req.userCode;
-    } else {
-      // New Admin-assigned enquiries also remain supported.
+    } else if (req.query.buyerUserCode) {
       filter.$or = [
-        { providerUserCode: req.userCode },
-        { assignedProviderUserCode: req.userCode }
+        { buyerUserCode: regex }
+      ];
+    } else if (req.query.providerUserCode) {
+      filter.$or = [
+        { providerUserCode: regex },
+        { assignedProviderUserCode: regex }
+      ];
+    } else {
+      filter.$or = [
+        { buyerUserCode: regex },
+        { providerUserCode: regex },
+        { assignedProviderUserCode: regex }
       ];
     }
 
-    const enquiries = await Enquiry.find(filter).sort({ createdAt: -1 });
-    return res.json({ success: true, enquiries });
+    const enquiries = await Enquiry.find(filter).sort({ createdAt: -1 }).lean();
+    return res.json({ success: true, count: enquiries.length, enquiries });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

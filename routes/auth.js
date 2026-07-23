@@ -34,7 +34,7 @@ function safeUser(user) {
     name: user.name,
     email: user.email || "",
     phone: user.phone,
-    role: user.role,
+    role: user.role || "user",
     businessRole: user.businessRole || "buyer",
     userCode: user.userCode,
     companyName: user.companyName || "",
@@ -48,7 +48,11 @@ function safeUser(user) {
     isMarketplaceVisible: user.isMarketplaceVisible,
     isVerified: user.isVerified,
     blockedReason: user.blockedReason || "",
-    assignedProjects: user.assignedProjects || []
+    assignedProjects: user.assignedProjects || [],
+    subscriptionPlan: user.subscriptionPlan || "basic",
+    subscriptionBilling: user.subscriptionBilling || "monthly",
+    subscriptionStatus: user.subscriptionStatus || "active",
+    subscriptionExpiry: user.subscriptionExpiry || null
   };
 }
 
