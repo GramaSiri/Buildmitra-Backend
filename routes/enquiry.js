@@ -399,15 +399,17 @@ router.put("/admin/:enquiryCode/reject", requireAdmin, async (req, res) => {
   }
 });
 
-// Provider dashboard: enquiries matching providerUserCode OR assignedProviderUserCode.
+// Provider dashboard: enquiries matching assignedProviderUserCode, forwardedToUserCode, providerUserCode, OR originalProviderUserCode.
 router.get("/provider/my", requireUserCode, async (req, res) => {
   try {
     const userCode = text(req.query.providerUserCode || req.userCode);
     const regex = new RegExp("^" + userCode.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") + "$", "i");
     const enquiries = await Enquiry.find({
       $or: [
+        { assignedProviderUserCode: regex },
+        { forwardedToUserCode: regex },
         { providerUserCode: regex },
-        { assignedProviderUserCode: regex }
+        { originalProviderUserCode: regex }
       ]
     }).sort({ createdAt: -1 }).lean();
     return res.json({ success: true, count: enquiries.length, enquiries });

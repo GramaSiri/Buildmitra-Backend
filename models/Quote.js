@@ -1,34 +1,53 @@
 const mongoose = require("mongoose");
 
-const QuoteSchema = new mongoose.Schema({
-  quoteCode: { type: String, unique: true, sparse: true },
-  enquiryCode: { type: String, required: true },
+const QuoteSchema = new mongoose.Schema(
+  {
+    quoteCode: { type: String, unique: true, sparse: true, index: true },
+    enquiryCode: { type: String, required: true, index: true },
+    batchCode: { type: String, default: "", trim: true },
 
-  providerUserCode: { type: String, required: true },
-  providerName: String,
-  providerPhone: String,
+    buyerUserCode: { type: String, default: "", trim: true, index: true },
+    buyerName: { type: String, default: "", trim: true },
+    buyerPhone: { type: String, default: "", trim: true },
 
-  rate: Number,
-  quantity: Number,
-  totalAmount: Number,
-  deliveryTime: String,
-  terms: String,
-  remarks: String,
+    providerUserCode: { type: String, required: true, index: true },
+    providerName: { type: String, default: "", trim: true },
+    providerPhone: { type: String, default: "", trim: true },
+    providerRole: { type: String, default: "", trim: true },
 
-  attachmentUrl: { type: String },
-  attachmentName: { type: String },
-  attachmentSize: { type: String },
-  attachmentType: { type: String },
+    items: { type: Array, default: [] },
+    rate: { type: Number, default: 0 },
+    quantity: { type: Number, default: 0 },
+    unit: { type: String, default: "", trim: true },
 
-  status: {
-    type: String,
-    enum: ["sent", "accepted", "rejected"],
-    default: "sent"
+    subtotal: { type: Number, default: 0 },
+    gstAmount: { type: Number, default: 0 },
+    transportCharges: { type: Number, default: 0 },
+    loadingCharges: { type: Number, default: 0 },
+    unloadingCharges: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
+
+    totalAmount: { type: Number, default: 0 },
+    grandTotal: { type: Number, default: 0 },
+
+    deliveryTime: String,
+    terms: String,
+    remarks: String,
+
+    attachmentUrl: String,
+    attachmentName: String,
+    attachmentSize: String,
+    attachmentType: String,
+
+    status: {
+      type: String,
+      default: "sent",
+      index: true
+    },
+
+    whatsappMessage: String
   },
+  { timestamps: true }
+);
 
-  whatsappMessage: String,
-
-  createdAt: { type: Date, default: Date.now }
-});
-
-module.exports = mongoose.model("Quote", QuoteSchema);
+module.exports = mongoose.models.Quote || mongoose.model("Quote", QuoteSchema);
