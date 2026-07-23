@@ -12,6 +12,5 @@ const CertificateSchema = new mongoose.Schema({
   pdfData: { type: Buffer }
 });
 
-CertificateSchema.index({ certificateId: 1 });
 
 module.exports = mongoose.model('Certificate', CertificateSchema);

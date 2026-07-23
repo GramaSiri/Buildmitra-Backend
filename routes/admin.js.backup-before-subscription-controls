@@ -133,16 +133,7 @@ router.put('/mongo-users/:id/admin-control', requireAdmin, async (req, res) => {
       'isActive',
       'isMarketplaceVisible',
       'isVerified',
-      'blockedReason',
-      'subscriptionPlan',
-      'subscriptionBilling',
-      'subscriptionStatus',
-      'paymentStatus',
-      'activationType',
-      'subscriptionStart',
-      'subscriptionExpiry',
-      'lastPaymentDate',
-      'adminRemarks'
+      'blockedReason'
     ];
 
     const update = {};
@@ -442,4 +433,3 @@ router.put("/new-item-requests/:requestCode/reject", requireAdmin, async (req, r
 });
 
 module.exports = router;
-

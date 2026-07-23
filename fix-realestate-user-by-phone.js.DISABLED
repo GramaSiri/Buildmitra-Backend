@@ -1,0 +1,58 @@
+require("dotenv").config();
+const mongoose = require("mongoose");
+const User = require("./models/User");
+
+const phoneDigits = "7676942386";
+
+const uri =
+  process.env.MONGODB_URI ||
+  process.env.MONGO_URI ||
+  process.env.MONGODB_URL ||
+  process.env.DATABASE_URL ||
+  "mongodb://localhost:27017/buildmitra";
+
+(async () => {
+  try {
+    await mongoose.connect(uri);
+
+    console.log("Connected database:", mongoose.connection.name);
+
+    const user = await User.findOne({
+      $or: [
+        { phone: phoneDigits },
+        { phone: `+91${phoneDigits}` },
+        { phone: `91${phoneDigits}` }
+      ]
+    })
+      .select("_id name email phone userCode role businessRole")
+      .lean();
+
+    if (!user) {
+      console.log("USER_NOT_FOUND");
+      return;
+    }
+
+    console.log("Before correction:", user);
+
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        $set: {
+          businessRole: "realestate"
+        }
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    )
+      .select("_id name email phone userCode role businessRole")
+      .lean();
+
+    console.log("After correction:", updatedUser);
+  } catch (error) {
+    console.error("ERROR:", error.message);
+  } finally {
+    await mongoose.disconnect();
+  }
+})();

@@ -44,44 +44,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const providerEmail = String(
-      req.body.providerEmail || ""
-    ).trim().toLowerCase();
-
-    const providerPhoneRaw = String(
-      req.body.providerPhone || ""
-    ).trim();
-
-    const providerPhoneDigits = providerPhoneRaw.replace(/\D/g, "");
-    const providerId = String(req.body.providerId || "").trim();
-
-    const uploaderConditions = [
-      { userCode: providerUserCode },
-      { uniqueCode: providerUserCode },
-    ];
-
-    if (providerEmail) {
-      uploaderConditions.push({ email: providerEmail });
-    }
-
-    if (providerPhoneRaw) {
-      uploaderConditions.push({ phone: providerPhoneRaw });
-    }
-
-    if (providerPhoneDigits) {
-      uploaderConditions.push(
-        { phone: providerPhoneDigits },
-        { phone: `+91${providerPhoneDigits}` }
-      );
-    }
-
-    if (mongoose.Types.ObjectId.isValid(providerId)) {
-      uploaderConditions.push({ _id: providerId });
-    }
-
-    const user = await User.findOne({
-      $or: uploaderConditions,
-    })
+    const user = await User.findOne({ userCode: providerUserCode })
       .select("-password")
       .lean();
 
@@ -92,26 +55,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const normalizedBusinessRole = String(
-      user.businessRole || ""
-    )
-      .trim()
-      .toLowerCase()
-      .replace(/[\s_-]+/g, "");
-
-    const normalizedSystemRole = String(
-      user.role || ""
-    )
-      .trim()
-      .toLowerCase();
-
-    const isRealEstateUser =
-      normalizedBusinessRole === "realestate";
-
-    const isAdminUser =
-      normalizedSystemRole === "admin";
-
-    if (!isRealEstateUser && !isAdminUser) {
+    if (user.businessRole !== "realestate" && user.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Only registered Real Estate users can upload properties",
@@ -520,6 +464,4 @@ router.put("/admin/:propertyCode/feature", requireAdmin, async (req, res) => {
 });
 
 module.exports = router;
-
-
 
