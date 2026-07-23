@@ -46,10 +46,23 @@ const MarketplaceListingSchema = new mongoose.Schema(
     imageUrl: { type: String, default: "" },
     documentUrl: { type: String, default: "" },
 
+    images: [
+      {
+        url: { type: String, required: true },
+        caption: { type: String, default: "" },
+        isPrimary: { type: Boolean, default: false },
+        order: { type: Number, default: 0 },
+        status: { type: String, enum: ["pending", "approved", "rejected"], default: "approved" },
+        uploadDate: { type: Date, default: Date.now },
+        uploadedBy: { type: String, default: "" },
+        isActive: { type: Boolean, default: true }
+      }
+    ],
+
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
-      default: "pending",
+      default: "approved",
     },
 
     isActive: { type: Boolean, default: true },

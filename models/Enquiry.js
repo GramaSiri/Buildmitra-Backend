@@ -1,8 +1,10 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
 const EnquirySchema = new mongoose.Schema(
   {
     enquiryCode: { type: String, unique: true, index: true },
+    batchCode: { type: String, default: "", trim: true, index: true },
+    cartItems: { type: Array, default: [] },
 
     buyerUserCode: { type: String, default: "", trim: true, index: true },
     buyerName: { type: String, required: true, trim: true },
