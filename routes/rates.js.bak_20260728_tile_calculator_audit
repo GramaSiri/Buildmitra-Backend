@@ -1,0 +1,538 @@
+const express = require("express");
+const router = express.Router();
+const MarketRate = require("../models/MarketRate");
+const MasterItem = require("../models/MasterItem");
+const RateHistory = require("../models/RateHistory");
+const MarketplaceListing = require("../models/MarketplaceListing");
+
+function getIndianDateStr(dateObj = new Date()) {
+  const options = { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" };
+  const parts = new Intl.DateTimeFormat("en-CA", options).formatToParts(dateObj);
+  const year = parts.find(p => p.type === "year")?.value;
+  const month = parts.find(p => p.type === "month")?.value;
+  const day = parts.find(p => p.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeUnit(unit) {
+  if (!unit) return "";
+  const u = String(unit).trim().toUpperCase();
+  if (["KG", "KGS", "KILOGRAM", "KILOGRAMS"].includes(u)) return "KG";
+  if (["BAG", "BAGS", "BAG (50KG)"].includes(u)) return "BAG";
+  if (["CFT", "CU.FT", "CUFT", "CUBIC FEET", "CUBIC FOOT"].includes(u)) return "CFT";
+  if (["SQFT", "SQ.FT", "SFT", "SQUARE FEET", "SQ FT"].includes(u)) return "SQFT";
+  if (["NOS", "NO", "NUMBERS", "NUMBER", "PIECE", "PIECES", "NOS."].includes(u)) return "NOS";
+  if (["LTR", "LITRE", "LITER", "LITRES", "LITERS"].includes(u)) return "LTR";
+  if (["M", "METER", "METRE", "METERS"].includes(u)) return "M";
+  if (["CUM", "CU.M", "CUBIC METER"].includes(u)) return "CUM";
+  if (["MT", "TON", "TONNE", "METRIC TON"].includes(u)) return "MT";
+  return u;
+}
+
+const TARGET_ITEMS = [
+  { itemCode: "MAT-CEM-01", itemName: "Cement", category: "Materials", subCategory: "Structural", unit: "BAG", defaultRate: 410 },
+  { itemCode: "MAT-STL-01", itemName: "TMT Steel", category: "Materials", subCategory: "Structural", unit: "KG", defaultRate: 67 },
+  { itemCode: "MAT-MSND-01", itemName: "M-Sand", category: "Materials", subCategory: "Structural", unit: "CFT", defaultRate: 48 },
+  { itemCode: "MAT-PSND-01", itemName: "P-Sand", category: "Materials", subCategory: "Structural", unit: "CFT", defaultRate: 55 },
+  { itemCode: "MAT-AGG20-01", itemName: "20mm Aggregate", category: "Materials", subCategory: "Structural", unit: "CFT", defaultRate: 38 },
+  { itemCode: "MAT-BRK-01", itemName: "Red Bricks", category: "Materials", subCategory: "Masonry", unit: "NOS", defaultRate: 11 },
+  { itemCode: "MAT-BLK-01", itemName: "Concrete Blocks", category: "Materials", subCategory: "Masonry", unit: "NOS", defaultRate: 42 },
+  { itemCode: "MAT-VIT-01", itemName: "Vitrified Tiles", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 58 },
+  { itemCode: "MAT-GRN-01", itemName: "Granite", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 145 },
+  { itemCode: "SRV-TIL-LAY", itemName: "Tile Laying Labour", category: "Services", subCategory: "Flooring", unit: "SQFT", defaultRate: 24 }
+];
+
+async function ensureDefaultMasterRates(city = "Bengaluru") {
+  for (const target of TARGET_ITEMS) {
+    await MarketRate.updateOne(
+      { itemCode: target.itemCode, city },
+      {
+        $setOnInsert: {
+          masterItemCode: target.itemCode,
+          itemCode: target.itemCode,
+          itemName: target.itemName,
+          category: target.category,
+          subCategory: target.subCategory || "",
+          currentRate: target.defaultRate,
+          previousRate: target.defaultRate,
+          unit: normalizeUnit(target.unit),
+          city,
+          state: "Karnataka",
+          approvalStatus: "approved",
+          isActive: true,
+          sourceType: "admin_manual",
+          sourceName: "BuildMitra Admin Approved"
+        }
+      },
+      { upsert: true }
+    );
+  }
+}
+
+// GET /api/rates/ticker
+router.get("/ticker", async (req, res) => {
+  try {
+    const city = String(req.query.city || "Bengaluru").trim();
+    const todayStr = getIndianDateStr();
+    await ensureDefaultMasterRates(city);
+
+    const tickerList = [];
+    for (const target of TARGET_ITEMS) {
+      const itemRegex = new RegExp(target.itemName.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"), "i");
+      const activeListings = await MarketplaceListing.find({
+        approvalStatus: "approved",
+        status: { $in: ["approved", "active"] },
+        isActive: true,
+        isBlocked: false,
+        rate: { $gt: 0 },
+        $or: [{ itemName: itemRegex }, { masterItemCode: target.itemCode }]
+      }).lean();
+
+      let resolvedRate = 0;
+      let sourceType = "admin";
+      let sourceLabel = "BuildMitra Reference Rate";
+
+      if (activeListings.length > 0) {
+        const rates = activeListings.map(l => l.rate).filter(r => r > 0);
+        if (rates.length > 0) {
+          resolvedRate = Math.min(...rates);
+          sourceType = "marketplace";
+          sourceLabel = "Lowest Approved Marketplace Rate";
+        }
+      }
+
+      if (resolvedRate === 0) {
+        const adminRate = await MarketRate.findOne({
+          $or: [{ masterItemCode: target.itemCode }, { itemCode: target.itemCode }, { itemName: itemRegex }],
+          approvalStatus: "approved",
+          isActive: true,
+          currentRate: { $gt: 0 }
+        }).lean();
+
+        if (adminRate) {
+          resolvedRate = adminRate.currentRate;
+          sourceType = "admin";
+          sourceLabel = "BuildMitra Reference Rate";
+        }
+      }
+
+      if (resolvedRate <= 0) continue;
+
+      tickerList.push({
+        itemCode: target.itemCode,
+        itemName: target.itemName,
+        category: target.category,
+        subCategory: target.subCategory || "",
+        city,
+        todayRate: resolvedRate,
+        unit: normalizeUnit(target.unit),
+        sourceType,
+        sourceLabel,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    res.json({ success: true, count: tickerList.length, city, date: todayStr, rates: tickerList });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/rates/approved (Public & Calculators)
+router.get("/approved", async (req, res) => {
+  try {
+    await ensureDefaultMasterRates();
+    const rates = await MarketRate.find({ approvalStatus: "approved", isActive: true }).sort({ category: 1, itemName: 1 }).lean();
+    res.json({ success: true, count: rates.length, rates });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/rates/admin (Admin Dashboard)
+router.get("/admin", async (req, res) => {
+  try {
+    await ensureDefaultMasterRates();
+    const filter = {};
+
+    if (req.query.search) {
+      const q = String(req.query.search).trim();
+      const regex = new RegExp(q, "i");
+      filter.$or = [
+        { masterItemCode: regex },
+        { itemCode: regex },
+        { itemName: regex },
+        { category: regex },
+        { subCategory: regex },
+        { brand: regex },
+        { specification: regex }
+      ];
+    }
+
+    if (req.query.category && req.query.category !== "all") {
+      filter.category = new RegExp(String(req.query.category).trim(), "i");
+    }
+
+    if (req.query.itemType && req.query.itemType !== "all") {
+      filter.itemType = String(req.query.itemType).trim().toLowerCase();
+    }
+
+    if (req.query.status && req.query.status !== "all") {
+      if (req.query.status === "active") filter.isActive = true;
+      if (req.query.status === "inactive") filter.isActive = false;
+    }
+
+    if (req.query.approvalStatus && req.query.approvalStatus !== "all") {
+      filter.approvalStatus = String(req.query.approvalStatus).trim().toLowerCase();
+    }
+
+    const rates = await MarketRate.find(filter).sort({ updatedAt: -1 }).lean();
+    const history = await RateHistory.find({}).sort({ createdAt: -1 }).limit(50).lean();
+
+    // Attach supplier listings count per rate
+    const masterCodes = rates.map(r => r.masterItemCode || r.itemCode).filter(Boolean);
+    const listingCounts = await MarketplaceListing.aggregate([
+      { $match: { masterItemCode: { $in: masterCodes } } },
+      { $group: { _id: "$masterItemCode", count: { $sum: 1 } } }
+    ]);
+    const listingMap = {};
+    listingCounts.forEach(l => { listingMap[l._id] = l.count; });
+
+    const enrichedRates = rates.map(r => ({
+      ...r,
+      unit: normalizeUnit(r.unit),
+      supplierListingsCount: listingMap[r.masterItemCode || r.itemCode] || 0
+    }));
+
+    res.json({
+      success: true,
+      count: enrichedRates.length,
+      rates: enrichedRates,
+      history
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/rates/add (Admin Add/Update Single Rate against Master Item)
+router.post("/add", async (req, res) => {
+  try {
+    const { masterItemCode, itemCode, itemName, category, subCategory, specification, brand, currentRate, rate, unit, city, state, pincode, gst, effectiveDate, remarks, isActive, approvalStatus } = req.body;
+    
+    const code = String(masterItemCode || itemCode || "").trim().toUpperCase();
+    const numRate = Number(currentRate !== undefined ? currentRate : rate || 0);
+
+    if (!code || numRate <= 0) {
+      return res.status(400).json({ success: false, message: "Valid masterItemCode and positive rate are required" });
+    }
+
+    // Validate against MasterItem Library
+    let masterItem = await MasterItem.findOne({ masterItemCode: code });
+    if (!masterItem) {
+      masterItem = await MasterItem.findOne({ itemName: new RegExp(`^${String(itemName || '').trim()}$`, "i") });
+    }
+
+    const finalItemName = masterItem ? masterItem.itemName : String(itemName || code).trim();
+    const finalCategory = masterItem ? masterItem.category : String(category || "Materials").trim();
+    const finalSubCategory = masterItem ? masterItem.subCategory : String(subCategory || "").trim();
+    const finalSpec = masterItem ? masterItem.specification : String(specification || "").trim();
+    const finalUnit = normalizeUnit(unit || (masterItem ? masterItem.unit : "NOS"));
+
+    const filter = { itemCode: code, city: String(city || "Bengaluru").trim() };
+
+    let rateDoc = await MarketRate.findOne(filter);
+    if (rateDoc) {
+      rateDoc.previousRate = rateDoc.currentRate;
+      rateDoc.currentRate = numRate;
+      rateDoc.masterItemCode = code;
+      rateDoc.itemName = finalItemName;
+      rateDoc.category = finalCategory;
+      rateDoc.subCategory = finalSubCategory;
+      rateDoc.specification = finalSpec;
+      rateDoc.unit = finalUnit;
+      if (gst !== undefined) rateDoc.gst = Number(gst);
+      if (state) rateDoc.state = String(state).trim();
+      if (pincode) rateDoc.pincode = String(pincode).trim();
+      if (effectiveDate) rateDoc.effectiveDate = effectiveDate;
+      if (remarks) rateDoc.remarks = remarks;
+      rateDoc.approvalStatus = approvalStatus || "approved";
+      rateDoc.isActive = isActive !== undefined ? Boolean(isActive) : true;
+      rateDoc.updatedAt = new Date();
+      await rateDoc.save();
+    } else {
+      rateDoc = await MarketRate.create({
+        masterItemCode: code,
+        itemCode: code,
+        itemName: finalItemName,
+        itemType: masterItem ? masterItem.itemType : "material",
+        category: finalCategory,
+        subCategory: finalSubCategory,
+        specification: finalSpec,
+        brand: String(brand || "").trim(),
+        currentRate: numRate,
+        previousRate: numRate,
+        unit: finalUnit,
+        gst: Number(gst || 0),
+        city: String(city || "Bengaluru").trim(),
+        state: String(state || "Karnataka").trim(),
+        pincode: String(pincode || "").trim(),
+        approvalStatus: approvalStatus || "approved",
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
+        sourceType: "admin_manual",
+        sourceName: "BuildMitra Approved",
+        effectiveDate: effectiveDate || new Date().toISOString().split("T")[0],
+        remarks: remarks || ""
+      });
+    }
+
+    if (masterItem) {
+      masterItem.referenceRate = numRate;
+      await masterItem.save();
+    }
+
+    res.json({ success: true, rate: rateDoc });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/rates/:id (Edit Rate)
+router.put("/:id", async (req, res) => {
+  try {
+    const rateDoc = await MarketRate.findById(req.params.id);
+    if (!rateDoc) return res.status(404).json({ success: false, message: "Rate record not found" });
+
+    const numRate = Number(req.body.currentRate !== undefined ? req.body.currentRate : req.body.rate);
+    if (!isNaN(numRate) && numRate > 0) {
+      rateDoc.previousRate = rateDoc.currentRate;
+      rateDoc.currentRate = numRate;
+    }
+
+    if (req.body.unit) rateDoc.unit = normalizeUnit(req.body.unit);
+    if (req.body.city) rateDoc.city = String(req.body.city).trim();
+    if (req.body.state) rateDoc.state = String(req.body.state).trim();
+    if (req.body.gst !== undefined) rateDoc.gst = Number(req.body.gst);
+    if (req.body.effectiveDate) rateDoc.effectiveDate = req.body.effectiveDate;
+    if (req.body.remarks !== undefined) rateDoc.remarks = req.body.remarks;
+    if (req.body.isActive !== undefined) rateDoc.isActive = Boolean(req.body.isActive);
+    if (req.body.approvalStatus) rateDoc.approvalStatus = req.body.approvalStatus;
+
+    await rateDoc.save();
+    res.json({ success: true, rate: rateDoc });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/rates/:id/toggle (Activate / Deactivate Rate)
+router.put("/:id/toggle", async (req, res) => {
+  try {
+    const rateDoc = await MarketRate.findById(req.params.id);
+    if (!rateDoc) return res.status(404).json({ success: false, message: "Rate record not found" });
+
+    rateDoc.isActive = req.body.isActive !== undefined ? Boolean(req.body.isActive) : !rateDoc.isActive;
+    if (!rateDoc.isActive) rateDoc.approvalStatus = "rejected";
+    else rateDoc.approvalStatus = "approved";
+
+    await rateDoc.save();
+    res.json({ success: true, message: `Rate ${rateDoc.isActive ? "activated" : "deactivated"}`, rate: rateDoc });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/rates/:id (Soft Delete Rate)
+router.delete("/:id", async (req, res) => {
+  try {
+    const rateDoc = await MarketRate.findById(req.params.id);
+    if (!rateDoc) return res.status(404).json({ success: false, message: "Rate record not found" });
+
+    rateDoc.isActive = false;
+    rateDoc.approvalStatus = "rejected";
+    await rateDoc.save();
+
+    res.json({ success: true, message: "Rate soft-deleted (deactivated) successfully", rate: rateDoc });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/rates/bulk (Admin Bulk Upload Rates with Master Item Matching Priority)
+router.post("/bulk", async (req, res) => {
+  try {
+    const rows = Array.isArray(req.body.items) ? req.body.items : [];
+    if (!rows.length) return res.status(400).json({ success: false, message: "No rows provided for bulk upload" });
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    let failed = 0;
+    let manualReviewRequired = 0;
+    const details = [];
+
+    for (const row of rows) {
+      const inputCode = String(row.masterItemCode || row.itemCode || row.code || "").trim().toUpperCase();
+      const inputId = String(row.masterItemId || row._id || row.id || "").trim();
+      const inputName = String(row.itemName || row.masterItemName || row.name || row.item || "").trim();
+      const rateVal = Number(row.rate || row.currentRate || 0);
+
+      if (rateVal <= 0) {
+        failed++;
+        details.push({ row, status: "failed", reason: "Invalid or zero rate" });
+        continue;
+      }
+
+      // Matching Priority:
+      // 1. masterItemCode
+      // 2. masterItemId
+      // 3. Exact canonical name
+      // 4. Alias match
+      let masterItem = null;
+
+      if (inputCode) {
+        masterItem = await MasterItem.findOne({ masterItemCode: inputCode });
+      }
+
+      if (!masterItem && inputId && /^[a-f\d]{24}$/i.test(inputId)) {
+        masterItem = await MasterItem.findById(inputId);
+      }
+
+      if (!masterItem && inputName) {
+        masterItem = await MasterItem.findOne({ itemName: new RegExp(`^${inputName.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}$`, "i") });
+      }
+
+      if (!masterItem && inputName) {
+        masterItem = await MasterItem.findOne({ itemName: new RegExp(inputName.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"), "i") });
+      }
+
+      if (!masterItem) {
+        manualReviewRequired++;
+        failed++;
+        details.push({ row, status: "manual_review_required", reason: `No matching Master Item found for '${inputCode || inputName}'` });
+        continue;
+      }
+
+      const targetCode = masterItem.masterItemCode;
+      const city = String(row.city || row.region || "Bengaluru").trim();
+      const unit = normalizeUnit(row.unit || masterItem.unit || "NOS");
+
+      let rateDoc = await MarketRate.findOne({ itemCode: targetCode, city });
+
+      if (rateDoc) {
+        rateDoc.previousRate = rateDoc.currentRate;
+        rateDoc.currentRate = rateVal;
+        rateDoc.unit = unit;
+        rateDoc.gst = Number(row.gst || masterItem.gst || 0);
+        rateDoc.isActive = String(row.activeStatus || row.status || "active").toLowerCase() !== "inactive";
+        rateDoc.approvalStatus = "approved";
+        rateDoc.updatedAt = new Date();
+        await rateDoc.save();
+        updated++;
+        details.push({ masterItemCode: targetCode, itemName: masterItem.itemName, status: "updated" });
+      } else {
+        await MarketRate.create({
+          masterItemCode: targetCode,
+          itemCode: targetCode,
+          itemName: masterItem.itemName,
+          itemType: masterItem.itemType || "material",
+          category: masterItem.category || row.category || "Materials",
+          subCategory: masterItem.subCategory || row.subCategory || "",
+          specification: masterItem.specification || row.specification || "",
+          brand: masterItem.brand || "",
+          currentRate: rateVal,
+          previousRate: rateVal,
+          unit,
+          gst: Number(row.gst || masterItem.gst || 0),
+          city,
+          state: String(row.state || "Karnataka").trim(),
+          sourceType: "admin_manual",
+          sourceName: "BuildMitra Admin Bulk Upload",
+          approvalStatus: "approved",
+          isActive: String(row.activeStatus || row.status || "active").toLowerCase() !== "inactive",
+          effectiveDate: row.effectiveDate || new Date().toISOString().split("T")[0],
+          remarks: row.remarks || "Bulk imported"
+        });
+        created++;
+        details.push({ masterItemCode: targetCode, itemName: masterItem.itemName, status: "created" });
+      }
+
+      masterItem.referenceRate = rateVal;
+      await masterItem.save();
+    }
+
+    res.json({
+      success: true,
+      totalRows: rows.length,
+      created,
+      updated,
+      skipped,
+      failed,
+      manualReviewRequired,
+      details
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/rates/lookup/:code (Regional Fallback Lookup)
+router.get("/lookup/:code", async (req, res) => {
+  try {
+    const code = String(req.params.code).trim().toUpperCase();
+    const city = String(req.query.city || "Bengaluru").trim();
+    const state = String(req.query.state || "Karnataka").trim();
+
+    // Priority 1: Exact Master Item Code / Legacy Code + City
+    let rateDoc = await MarketRate.findOne({
+      $or: [{ masterItemCode: code }, { itemCode: code }, { legacyCode: code }],
+      city: new RegExp(`^${city}$`, "i"),
+      approvalStatus: "approved",
+      isActive: true
+    });
+
+    // Priority 2: State Fallback
+    if (!rateDoc) {
+      rateDoc = await MarketRate.findOne({
+        $or: [{ masterItemCode: code }, { itemCode: code }, { legacyCode: code }],
+        state: new RegExp(`^${state}$`, "i"),
+        approvalStatus: "approved",
+        isActive: true
+      });
+    }
+
+    // Priority 3: Default/National Admin Rate
+    if (!rateDoc) {
+      rateDoc = await MarketRate.findOne({
+        $or: [{ masterItemCode: code }, { itemCode: code }, { legacyCode: code }],
+        approvalStatus: "approved",
+        isActive: true
+      }).sort({ updatedAt: -1 });
+    }
+
+    if (!rateDoc) {
+      return res.status(404).json({
+        success: false,
+        found: false,
+        message: "Rate Unavailable in Admin Master",
+        rate: 0
+      });
+    }
+
+    res.json({
+      success: true,
+      found: true,
+      rate: rateDoc.currentRate,
+      unit: normalizeUnit(rateDoc.unit),
+      source: "Admin Master Rate",
+      itemCode: rateDoc.itemCode,
+      itemName: rateDoc.itemName,
+      city: rateDoc.city,
+      effectiveDate: rateDoc.effectiveDate
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+module.exports = router;

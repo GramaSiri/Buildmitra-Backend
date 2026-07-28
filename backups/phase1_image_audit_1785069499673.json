@@ -1,0 +1,576 @@
+{
+  "timestamp": "2026-07-26T12:38:19.671Z",
+  "totalMasterItems": 2880,
+  "itemsWithImage": 0,
+  "itemsNoImage": 2880,
+  "duplicateUrlCount": 0,
+  "uniqueImageUrlsCount": 0,
+  "duplicatedUrlsSample": [],
+  "categoryStats": {
+    "Adhesive": {
+      "total": 6,
+      "withImage": 0,
+      "missingImage": 6
+    },
+    "Aerocon Blocks": {
+      "total": 5,
+      "withImage": 0,
+      "missingImage": 5
+    },
+    "Basket": {
+      "total": 12,
+      "withImage": 0,
+      "missingImage": 12
+    },
+    "Bathroom Fittings": {
+      "total": 130,
+      "withImage": 0,
+      "missingImage": 130
+    },
+    "Bathroom Vanity": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Bricks": {
+      "total": 3,
+      "withImage": 0,
+      "missingImage": 3
+    },
+    "Bulk Material": {
+      "total": 21,
+      "withImage": 0,
+      "missingImage": 21
+    },
+    "Cast Iron": {
+      "total": 8,
+      "withImage": 0,
+      "missingImage": 8
+    },
+    "Cement": {
+      "total": 60,
+      "withImage": 0,
+      "missingImage": 60
+    },
+    "Chimney": {
+      "total": 5,
+      "withImage": 0,
+      "missingImage": 5
+    },
+    "CI-Chamber Covers": {
+      "total": 6,
+      "withImage": 0,
+      "missingImage": 6
+    },
+    "Cladding Sheet": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Concrete Blocks": {
+      "total": 6,
+      "withImage": 0,
+      "missingImage": 6
+    },
+    "DG-Set": {
+      "total": 19,
+      "withImage": 0,
+      "missingImage": 19
+    },
+    "Door-Hardware": {
+      "total": 15,
+      "withImage": 0,
+      "missingImage": 15
+    },
+    "Doors-Main Door": {
+      "total": 14,
+      "withImage": 0,
+      "missingImage": 14
+    },
+    "Electrical - Busbars": {
+      "total": 8,
+      "withImage": 0,
+      "missingImage": 8
+    },
+    "Electrical - Drives": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Electrical - Earthing": {
+      "total": 3,
+      "withImage": 0,
+      "missingImage": 3
+    },
+    "Electrical - Enclosures": {
+      "total": 8,
+      "withImage": 0,
+      "missingImage": 8
+    },
+    "Electrical - Industrial Sockets": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Electrical - MCB": {
+      "total": 11,
+      "withImage": 0,
+      "missingImage": 11
+    },
+    "Electrical - Outlets": {
+      "total": 15,
+      "withImage": 0,
+      "missingImage": 15
+    },
+    "Electrical- CAT-Cables": {
+      "total": 11,
+      "withImage": 0,
+      "missingImage": 11
+    },
+    "Electrical -Circuit Protection": {
+      "total": 11,
+      "withImage": 0,
+      "missingImage": 11
+    },
+    "Electrical -Connectors": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Electrical -Distribution Box": {
+      "total": 13,
+      "withImage": 0,
+      "missingImage": 13
+    },
+    "Electrical- Plates": {
+      "total": 18,
+      "withImage": 0,
+      "missingImage": 18
+    },
+    "Electrical- Switches & Plugs": {
+      "total": 5,
+      "withImage": 0,
+      "missingImage": 5
+    },
+    "Electrical-Cable Accessories": {
+      "total": 14,
+      "withImage": 0,
+      "missingImage": 14
+    },
+    "Electrical-Cables": {
+      "total": 27,
+      "withImage": 0,
+      "missingImage": 27
+    },
+    "Electrical-Circuit Protection": {
+      "total": 1,
+      "withImage": 0,
+      "missingImage": 1
+    },
+    "Electrical-Conduit Accessories": {
+      "total": 15,
+      "withImage": 0,
+      "missingImage": 15
+    },
+    "Electrical-Conduit Pipes": {
+      "total": 9,
+      "withImage": 0,
+      "missingImage": 9
+    },
+    "Electrical-Modular Boxes": {
+      "total": 54,
+      "withImage": 0,
+      "missingImage": 54
+    },
+    "Electrical-Panel Accessories": {
+      "total": 36,
+      "withImage": 0,
+      "missingImage": 36
+    },
+    "Electricals - Panels": {
+      "total": 9,
+      "withImage": 0,
+      "missingImage": 9
+    },
+    "Electricals-Regulators": {
+      "total": 8,
+      "withImage": 0,
+      "missingImage": 8
+    },
+    "Electricals-Relays": {
+      "total": 8,
+      "withImage": 0,
+      "missingImage": 8
+    },
+    "Electricals-Sitches & Sockets": {
+      "total": 17,
+      "withImage": 0,
+      "missingImage": 17
+    },
+    "Electrical - Switches & Sockets": {
+      "total": 52,
+      "withImage": 0,
+      "missingImage": 52
+    },
+    "Electrical-Switches &Sockets": {
+      "total": 28,
+      "withImage": 0,
+      "missingImage": 28
+    },
+    "Electrical-Switchgear": {
+      "total": 30,
+      "withImage": 0,
+      "missingImage": 30
+    },
+    "Electrical-Transformers": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Electrical-Wires": {
+      "total": 22,
+      "withImage": 0,
+      "missingImage": 22
+    },
+    "Fans": {
+      "total": 13,
+      "withImage": 0,
+      "missingImage": 13
+    },
+    "FRP-Chamber Covers": {
+      "total": 7,
+      "withImage": 0,
+      "missingImage": 7
+    },
+    "Furniture": {
+      "total": 19,
+      "withImage": 0,
+      "missingImage": 19
+    },
+    "Garden": {
+      "total": 17,
+      "withImage": 0,
+      "missingImage": 17
+    },
+    "GI-Chamber Covers": {
+      "total": 7,
+      "withImage": 0,
+      "missingImage": 7
+    },
+    "Glass": {
+      "total": 23,
+      "withImage": 0,
+      "missingImage": 23
+    },
+    "Granite": {
+      "total": 16,
+      "withImage": 0,
+      "missingImage": 16
+    },
+    "Hardware": {
+      "total": 63,
+      "withImage": 0,
+      "missingImage": 63
+    },
+    "HDPE Pipe & Fitting": {
+      "total": 90,
+      "withImage": 0,
+      "missingImage": 90
+    },
+    "HDPE Sheet": {
+      "total": 10,
+      "withImage": 0,
+      "missingImage": 10
+    },
+    "Hob": {
+      "total": 5,
+      "withImage": 0,
+      "missingImage": 5
+    },
+    "Interior": {
+      "total": 8,
+      "withImage": 0,
+      "missingImage": 8
+    },
+    "Interior Hardware": {
+      "total": 89,
+      "withImage": 0,
+      "missingImage": 89
+    },
+    "Interior-Lift-Up": {
+      "total": 9,
+      "withImage": 0,
+      "missingImage": 9
+    },
+    "Inverter-UPS": {
+      "total": 14,
+      "withImage": 0,
+      "missingImage": 14
+    },
+    "Kitchen Drain Bowl": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Kitchen-Corner Unit": {
+      "total": 6,
+      "withImage": 0,
+      "missingImage": 6
+    },
+    "Kitchen-Drawer System": {
+      "total": 9,
+      "withImage": 0,
+      "missingImage": 9
+    },
+    "Kitchen-Handle": {
+      "total": 6,
+      "withImage": 0,
+      "missingImage": 6
+    },
+    "Kitchen-Pullout": {
+      "total": 6,
+      "withImage": 0,
+      "missingImage": 6
+    },
+    "Laminates": {
+      "total": 28,
+      "withImage": 0,
+      "missingImage": 28
+    },
+    "Lift": {
+      "total": 15,
+      "withImage": 0,
+      "missingImage": 15
+    },
+    "Lighting": {
+      "total": 33,
+      "withImage": 0,
+      "missingImage": 33
+    },
+    "Loft -Hinge": {
+      "total": 3,
+      "withImage": 0,
+      "missingImage": 3
+    },
+    "Marble": {
+      "total": 16,
+      "withImage": 0,
+      "missingImage": 16
+    },
+    "Marble & Granite Accessories": {
+      "total": 18,
+      "withImage": 0,
+      "missingImage": 18
+    },
+    "Marker": {
+      "total": 2,
+      "withImage": 0,
+      "missingImage": 2
+    },
+    "Meters": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Mirrors": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Nails": {
+      "total": 2,
+      "withImage": 0,
+      "missingImage": 2
+    },
+    "Paint Accessories": {
+      "total": 45,
+      "withImage": 0,
+      "missingImage": 45
+    },
+    "Paints": {
+      "total": 93,
+      "withImage": 0,
+      "missingImage": 93
+    },
+    "Plumbing - CPVC": {
+      "total": 328,
+      "withImage": 0,
+      "missingImage": 328
+    },
+    "Plumbing PVC Pipes & Fittings": {
+      "total": 307,
+      "withImage": 0,
+      "missingImage": 307
+    },
+    "Plumbing-UPVC": {
+      "total": 48,
+      "withImage": 0,
+      "missingImage": 48
+    },
+    "Plywood": {
+      "total": 81,
+      "withImage": 0,
+      "missingImage": 81
+    },
+    "Polish": {
+      "total": 24,
+      "withImage": 0,
+      "missingImage": 24
+    },
+    "Polishing Pads": {
+      "total": 3,
+      "withImage": 0,
+      "missingImage": 3
+    },
+    "Roffing Sheet": {
+      "total": 3,
+      "withImage": 0,
+      "missingImage": 3
+    },
+    "Roofing": {
+      "total": 32,
+      "withImage": 0,
+      "missingImage": 32
+    },
+    "Safety": {
+      "total": 5,
+      "withImage": 0,
+      "missingImage": 5
+    },
+    "Sanding Paper": {
+      "total": 3,
+      "withImage": 0,
+      "missingImage": 3
+    },
+    "Sanitaryware": {
+      "total": 49,
+      "withImage": 0,
+      "missingImage": 49
+    },
+    "Sealant": {
+      "total": 2,
+      "withImage": 0,
+      "missingImage": 2
+    },
+    "Stainless Steel": {
+      "total": 17,
+      "withImage": 0,
+      "missingImage": 17
+    },
+    "Strip": {
+      "total": 20,
+      "withImage": 0,
+      "missingImage": 20
+    },
+    "Structural Steel": {
+      "total": 32,
+      "withImage": 0,
+      "missingImage": 32
+    },
+    "Tapes": {
+      "total": 9,
+      "withImage": 0,
+      "missingImage": 9
+    },
+    "Tarpaulin": {
+      "total": 9,
+      "withImage": 0,
+      "missingImage": 9
+    },
+    "Tiles -Step": {
+      "total": 6,
+      "withImage": 0,
+      "missingImage": 6
+    },
+    "Tiles-Accessories": {
+      "total": 30,
+      "withImage": 0,
+      "missingImage": 30
+    },
+    "Tiles-Border": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Tiles-Cladding": {
+      "total": 43,
+      "withImage": 0,
+      "missingImage": 43
+    },
+    "Tiles-Flooring": {
+      "total": 38,
+      "withImage": 0,
+      "missingImage": 38
+    },
+    "Tiles-Parking": {
+      "total": 6,
+      "withImage": 0,
+      "missingImage": 6
+    },
+    "Tiles-Skerting": {
+      "total": 4,
+      "withImage": 0,
+      "missingImage": 4
+    },
+    "Tiles-step": {
+      "total": 2,
+      "withImage": 0,
+      "missingImage": 2
+    },
+    "TMT Bars": {
+      "total": 84,
+      "withImage": 0,
+      "missingImage": 84
+    },
+    "Tools": {
+      "total": 82,
+      "withImage": 0,
+      "missingImage": 82
+    },
+    "Wall Putty": {
+      "total": 12,
+      "withImage": 0,
+      "missingImage": 12
+    },
+    "Wallpaper": {
+      "total": 40,
+      "withImage": 0,
+      "missingImage": 40
+    },
+    "Water Heater": {
+      "total": 5,
+      "withImage": 0,
+      "missingImage": 5
+    },
+    "White Cement": {
+      "total": 12,
+      "withImage": 0,
+      "missingImage": 12
+    },
+    "Window-Aluminium": {
+      "total": 16,
+      "withImage": 0,
+      "missingImage": 16
+    },
+    "Window-UPVC": {
+      "total": 25,
+      "withImage": 0,
+      "missingImage": 25
+    },
+    "Window-Wooden": {
+      "total": 16,
+      "withImage": 0,
+      "missingImage": 16
+    },
+    "Wooden-Door": {
+      "total": 17,
+      "withImage": 0,
+      "missingImage": 17
+    },
+    "WPC-Door": {
+      "total": 15,
+      "withImage": 0,
+      "missingImage": 15
+    }
+  }
+}

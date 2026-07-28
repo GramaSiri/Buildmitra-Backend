@@ -2,8 +2,10 @@ const mongoose = require("mongoose");
 
 const MarketRateSchema = new mongoose.Schema(
   {
-    itemCode: { type: String, required: true, unique: true, index: true },
+    masterItemCode: { type: String, trim: true, index: true },
+    itemCode: { type: String, required: true, trim: true, index: true },
     itemName: { type: String, required: true, trim: true, index: true },
+    itemType: { type: String, default: "material", trim: true, index: true },
     category: { type: String, required: true, trim: true, index: true },
     subCategory: { type: String, default: "", trim: true },
     specification: { type: String, default: "", trim: true },
@@ -15,9 +17,11 @@ const MarketRateSchema = new mongoose.Schema(
     previousRate: { type: Number, default: 0 },
 
     unit: { type: String, required: true, trim: true },
+    gst: { type: Number, default: 0 },
     city: { type: String, default: "Bengaluru", trim: true, index: true },
     state: { type: String, default: "Karnataka", trim: true },
     pincode: { type: String, default: "", trim: true },
+    region: { type: String, default: "Bengaluru", trim: true },
 
     sourceType: {
       type: String,
@@ -34,12 +38,16 @@ const MarketRateSchema = new mongoose.Schema(
       default: "approved",
       index: true
     },
-    isActive: { type: Boolean, default: true },
+    isActive: { type: Boolean, default: true, index: true },
     approvedBy: { type: String, default: "Admin", trim: true },
     approvedAt: Date,
-    effectiveDate: { type: String, default: () => new Date().toISOString().split("T")[0] }
+    effectiveDate: { type: String, default: () => new Date().toISOString().split("T")[0] },
+    remarks: { type: String, default: "" }
   },
   { timestamps: true, collection: "marketRates" }
 );
+
+MarketRateSchema.index({ itemCode: 1, city: 1, unit: 1 });
+MarketRateSchema.index({ masterItemCode: 1, city: 1 });
 
 module.exports = mongoose.models.MarketRate || mongoose.model("MarketRate", MarketRateSchema);

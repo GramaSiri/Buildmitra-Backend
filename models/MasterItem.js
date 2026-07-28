@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const MasterItemSchema = new mongoose.Schema(
   {
     masterItemCode: { type: String, required: true, unique: true, trim: true, uppercase: true },
+    legacyCode: { type: String, default: "", trim: true, index: true },
     itemType: {
       type: String,
       enum: ["material", "service", "labour", "machine", "vendor"],
@@ -18,6 +19,29 @@ const MasterItemSchema = new mongoose.Schema(
     gst: { type: Number, default: 0 },
     hsnCode: { type: String, default: "" },
     imageUrl: { type: String, default: "" },
+    imageSourceUrl: { type: String, default: "" },
+    imageSourceName: { type: String, default: "" },
+    imageLicense: { type: String, default: "Public Domain / CC0 / Open License" },
+    imageAltText: { type: String, default: "" },
+    imageSearchQuery: { type: String, default: "" },
+    imageStatus: { 
+      type: String, 
+      enum: ["verified", "needs-review", "not-found", "generic-category-image", "rejected"],
+      default: "needs-review",
+      index: true 
+    },
+    imageVerified: { type: Boolean, default: false },
+    imageUpdatedAt: { type: Date },
+    images: [
+      {
+        url: { type: String, default: "" },
+        alt: { type: String, default: "" },
+        isPrimary: { type: Boolean, default: false },
+        publicId: { type: String, default: "" },
+        sourceType: { type: String, default: "" },
+        sourceReference: { type: String, default: "" }
+      }
+    ],
     referenceRate: { type: Number, default: 0 },
     status: { type: String, enum: ["active", "inactive"], default: "active", index: true },
     createdBy: { type: String, default: "admin" },

@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const MarketRate = require("../models/MarketRate");
+const MasterItem = require("../models/MasterItem");
 const RateHistory = require("../models/RateHistory");
 const MarketplaceListing = require("../models/MarketplaceListing");
 
-// Get today's YYYY-MM-DD in Asia/Kolkata
 function getIndianDateStr(dateObj = new Date()) {
   const options = { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" };
   const parts = new Intl.DateTimeFormat("en-CA", options).formatToParts(dateObj);
@@ -14,64 +14,117 @@ function getIndianDateStr(dateObj = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-// TARGET 7 ITEM DEFINITIONS (Priority Materials & Services First)
+function normalizeUnit(unit) {
+  if (!unit) return "";
+  const u = String(unit).trim().toUpperCase();
+  if (["KG", "KGS", "KILOGRAM", "KILOGRAMS"].includes(u)) return "KG";
+  if (["BAG", "BAGS", "BAG (50KG)"].includes(u)) return "BAG";
+  if (["CFT", "CU.FT", "CUFT", "CUBIC FEET", "CUBIC FOOT"].includes(u)) return "CFT";
+  if (["SQFT", "SQ.FT", "SFT", "SQUARE FEET", "SQ FT"].includes(u)) return "SQFT";
+  if (["RFT", "RUNNING FEET", "RUNNING FOOT"].includes(u)) return "RFT";
+  if (["NOS", "NO", "NUMBERS", "NUMBER", "PIECE", "PIECES", "NOS.", "PKT", "PACKET"].includes(u)) return "NOS";
+  if (["LTR", "LITRE", "LITER", "LITRES", "LITERS"].includes(u)) return "LTR";
+  if (["M", "METER", "METRE", "METERS"].includes(u)) return "M";
+  if (["CUM", "CU.M", "CUBIC METER"].includes(u)) return "CUM";
+  if (["MT", "TON", "TONNE", "METRIC TON"].includes(u)) return "MT";
+  return u;
+}
+
 const TARGET_ITEMS = [
-  // High Priority Structural & Core Materials
-  { itemCode: "MAT-CEM-01", itemName: "Cement", category: "Materials", subCategory: "Structural", unit: "bag", defaultRate: 410 },
-  { itemCode: "MAT-STL-01", itemName: "TMT Steel", category: "Materials", subCategory: "Structural", unit: "kg", defaultRate: 67 },
-  { itemCode: "MAT-MSND-01", itemName: "M-Sand", category: "Materials", subCategory: "Structural", unit: "cft", defaultRate: 48 },
-  { itemCode: "MAT-PSND-01", itemName: "P-Sand", category: "Materials", subCategory: "Structural", unit: "cft", defaultRate: 55 },
-  { itemCode: "MAT-AGG20-01", itemName: "20mm Aggregate", category: "Materials", subCategory: "Structural", unit: "cft", defaultRate: 38 },
-  { itemCode: "MAT-BRK-01", itemName: "Red Bricks", category: "Materials", subCategory: "Masonry", unit: "piece", defaultRate: 11 },
-  { itemCode: "MAT-BLK-01", itemName: "Concrete Blocks", category: "Materials", subCategory: "Masonry", unit: "piece", defaultRate: 42 },
-
-  // Electrical
-  { itemCode: "MAT-WIR-01", itemName: "Electrical Wires", category: "Materials", subCategory: "Electrical", unit: "coil (90m)", defaultRate: 1850 },
-  { itemCode: "MAT-WIR15-01", itemName: "House Wire 1.5 sq.mm", category: "Materials", subCategory: "Electrical", unit: "coil (90m)", defaultRate: 1420 },
-  { itemCode: "MAT-WIR25-01", itemName: "House Wire 2.5 sq.mm", category: "Materials", subCategory: "Electrical", unit: "coil (90m)", defaultRate: 2150 },
-  { itemCode: "MAT-SWT-01", itemName: "Switches", category: "Materials", subCategory: "Electrical", unit: "piece", defaultRate: 115 },
-
-  // Plumbing
-  { itemCode: "MAT-PVC-01", itemName: "PVC Pipes", category: "Materials", subCategory: "Plumbing", unit: "length (3m)", defaultRate: 280 },
-  { itemCode: "MAT-CPVC-01", itemName: "CPVC Pipes", category: "Materials", subCategory: "Plumbing", unit: "length (3m)", defaultRate: 360 },
-  { itemCode: "MAT-UPVC-01", itemName: "UPVC Pipes", category: "Materials", subCategory: "Plumbing", unit: "length (3m)", defaultRate: 320 },
-  { itemCode: "MAT-WTANK-01", itemName: "Water Tanks", category: "Materials", subCategory: "Plumbing", unit: "ltr", defaultRate: 8 },
-
-  // Finishing
-  { itemCode: "MAT-INTP-01", itemName: "Interior Paint", category: "Materials", subCategory: "Finishing", unit: "ltr", defaultRate: 240 },
-  { itemCode: "MAT-EXTP-01", itemName: "Exterior Paint", category: "Materials", subCategory: "Finishing", unit: "ltr", defaultRate: 310 },
-  { itemCode: "MAT-PUTTY-01", itemName: "Wall Putty", category: "Materials", subCategory: "Finishing", unit: "bag (40kg)", defaultRate: 780 },
-  { itemCode: "MAT-VIT-01", itemName: "Vitrified Tiles", category: "Materials", subCategory: "Flooring", unit: "sq.ft", defaultRate: 58 },
-  { itemCode: "MAT-GRN-01", itemName: "Granite", category: "Materials", subCategory: "Flooring", unit: "sq.ft", defaultRate: 145 },
-  { itemCode: "MAT-TEAK-01", itemName: "Teak Wood", category: "Materials", subCategory: "Woodwork", unit: "cu.ft", defaultRate: 2750 },
-
-  // Services & Labour
-  { itemCode: "SRV-CIV-LOB", itemName: "Civil Labour Only", category: "Services", subCategory: "Civil Work", rateScope: "labour-only", unit: "sq.ft", defaultRate: 240 },
-  { itemCode: "SRV-CIV-MAT", itemName: "Civil Labour With Material", category: "Services", subCategory: "Civil Work", rateScope: "with-material", unit: "sq.ft", defaultRate: 1850 },
-  { itemCode: "SRV-CPT-LOB", itemName: "Carpentry Labour", category: "Services", subCategory: "Carpentry", rateScope: "labour-only", unit: "sq.ft", defaultRate: 180 },
-  { itemCode: "SRV-CPT-INT", itemName: "Interior Carpentry", category: "Services", subCategory: "Carpentry", rateScope: "with-material", unit: "sq.ft", defaultRate: 1250 },
-  { itemCode: "SRV-PLM-PNT", itemName: "Plumbing Labour per point", category: "Services", subCategory: "Plumbing", rateScope: "labour-only", unit: "point", defaultRate: 850 },
-  { itemCode: "SRV-ELE-PNT", itemName: "Electrical Labour per point", category: "Services", subCategory: "Electrical", rateScope: "labour-only", unit: "point", defaultRate: 450 },
-  { itemCode: "SRV-PNT-LOB", itemName: "Painting Labour", category: "Services", subCategory: "Painting", rateScope: "labour-only", unit: "sq.ft", defaultRate: 14 },
-  { itemCode: "SRV-TIL-LAY", itemName: "Tile Laying", category: "Services", subCategory: "Flooring", rateScope: "labour-only", unit: "sq.ft", defaultRate: 24 },
-  { itemCode: "SRV-WTP-SFT", itemName: "Waterproofing", category: "Services", subCategory: "Specialised", rateScope: "with-material", unit: "sq.ft", defaultRate: 42 }
+  { itemCode: "MAT-CEM-01", itemName: "Cement (OPC 53)", category: "Materials", subCategory: "Structural", unit: "BAG", defaultRate: 385 },
+  { itemCode: "MAT-STL-01", itemName: "TMT Steel", category: "Materials", subCategory: "Structural", unit: "KG", defaultRate: 67 },
+  { itemCode: "MAT-MSND-01", itemName: "M-Sand", category: "Materials", subCategory: "Structural", unit: "CFT", defaultRate: 45 },
+  { itemCode: "MAT-VIT-01", itemName: "Vitrified Tiles (600x600)", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 65 },
+  { itemCode: "MAT-CER-01", itemName: "Ceramic Tiles", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 45 },
+  { itemCode: "MAT-GRN-01", itemName: "Granite Slab", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 165 },
+  { itemCode: "MAT-MRB-01", itemName: "Marble Slab", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 220 },
+  { itemCode: "MAT-KOT-01", itemName: "Kota Stone", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 75 },
+  { itemCode: "MAT-TAN-01", itemName: "Tandur Stone", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 68 },
+  { itemCode: "MAT-PRK-01", itemName: "Parking Tiles", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 52 },
+  { itemCode: "MAT-WDN-01", itemName: "Wooden Flooring", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 125 },
+  { itemCode: "MAT-VNY-01", itemName: "Vinyl Flooring", category: "Materials", subCategory: "Flooring", unit: "SQFT", defaultRate: 85 },
+  { itemCode: "MAT-ADH-01", itemName: "Tile Adhesive (20kg)", category: "Materials", subCategory: "Flooring Accessories", unit: "BAG", defaultRate: 450 },
+  { itemCode: "MAT-GRT-01", itemName: "Tile Grout", category: "Materials", subCategory: "Flooring Accessories", unit: "KG", defaultRate: 65 },
+  { itemCode: "MAT-SPC-01", itemName: "Tile Spacers (100 pcs)", category: "Materials", subCategory: "Flooring Accessories", unit: "NOS", defaultRate: 120 },
+  { itemCode: "SRV-TIL-LAY", itemName: "Tile Laying Labour", category: "Services", subCategory: "Flooring", unit: "SQFT", defaultRate: 24 },
+  { itemCode: "SRV-GRN-LAY", itemName: "Granite Laying Labour", category: "Services", subCategory: "Flooring", unit: "SQFT", defaultRate: 38 },
+  { itemCode: "SRV-MRB-LAY", itemName: "Marble Laying Labour", category: "Services", subCategory: "Flooring", unit: "SQFT", defaultRate: 45 },
+  { itemCode: "SRV-CLD-LAY", itemName: "Wall Cladding Labour", category: "Services", subCategory: "Flooring", unit: "SQFT", defaultRate: 30 },
+  { itemCode: "SRV-SKT-LAY", itemName: "Skirting Fixing Labour", category: "Services", subCategory: "Flooring", unit: "RFT", defaultRate: 15 },
+  { itemCode: "MAT-PUT-01", itemName: "Wall Putty", category: "Materials", subCategory: "Painting", unit: "KG", defaultRate: 19.50 },
+  { itemCode: "MAT-PRM-01", itemName: "Wall Primer", category: "Materials", subCategory: "Painting", unit: "LTR", defaultRate: 160 },
+  { itemCode: "MAT-PNT-01", itemName: "Emulsion Paint", category: "Materials", subCategory: "Painting", unit: "LTR", defaultRate: 235 },
+  { itemCode: "MAT-PNT-ROY", itemName: "Royal Luxury Paint", category: "Materials", subCategory: "Painting", unit: "LTR", defaultRate: 380 },
+  { itemCode: "MAT-PNT-EXT", itemName: "Exterior Weatherproof Paint", category: "Materials", subCategory: "Painting", unit: "LTR", defaultRate: 285 },
+  { itemCode: "MAT-ENM-01", itemName: "Enamel Paint", category: "Materials", subCategory: "Painting", unit: "LTR", defaultRate: 240 },
+  { itemCode: "MAT-PNT-CEL", itemName: "Ceiling Paint", category: "Materials", subCategory: "Painting", unit: "LTR", defaultRate: 180 },
+  { itemCode: "MAT-PNT-TXT", itemName: "Texture Paint", category: "Materials", subCategory: "Painting", unit: "KG", defaultRate: 95 },
+  { itemCode: "SRV-PNT-LAY", itemName: "Painting Labour", category: "Services", subCategory: "Painting", unit: "SQFT", defaultRate: 14 },
+  { itemCode: "MAT-WTR-01", itemName: "Construction Water Supply", category: "Materials", subCategory: "Site Utilities", unit: "LTR", defaultRate: 0.05 },
+  { itemCode: "MAT-WPR-01", itemName: "Waterproofing Liquid Compound", category: "Materials", subCategory: "Plastering Accessories", unit: "LTR", defaultRate: 135 },
+  { itemCode: "SRV-PLS-LAY", itemName: "Plastering Labour", category: "Services", subCategory: "Plastering", unit: "SQFT", defaultRate: 18 },
+  { itemCode: "MAT-BRK-01", itemName: "Clay Bricks", category: "Materials", subCategory: "Masonry", unit: "NOS", defaultRate: 7.50 },
+  { itemCode: "MAT-BLK-01", itemName: "Concrete Solid Blocks", category: "Materials", subCategory: "Masonry", unit: "NOS", defaultRate: 45 },
+  { itemCode: "MAT-AAC-01", itemName: "AAC Blocks", category: "Materials", subCategory: "Masonry", unit: "NOS", defaultRate: 75 },
+  { itemCode: "SRV-BRK-LAY", itemName: "Brickwork Masonry Labour", category: "Services", subCategory: "Masonry", unit: "SQFT", defaultRate: 12 },
+  { itemCode: "MAT-CEM-01", itemName: "Cement OPC 53 Grade", category: "Materials", subCategory: "Concrete", unit: "BAG", defaultRate: 385 },
+  { itemCode: "MAT-STL-01", itemName: "TMT Steel Rebar Fe 500D", category: "Materials", subCategory: "Steel", unit: "KG", defaultRate: 68 },
+  { itemCode: "MAT-MSND-01", itemName: "M-Sand", category: "Materials", subCategory: "Concrete", unit: "CFT", defaultRate: 46 },
+  { itemCode: "MAT-AGG-20", itemName: "20mm Aggregate", category: "Materials", subCategory: "Concrete", unit: "CFT", defaultRate: 40 },
+  { itemCode: "MAT-AGG-12", itemName: "12mm Aggregate", category: "Materials", subCategory: "Concrete", unit: "CFT", defaultRate: 42 },
+  { itemCode: "MAT-BWR-01", itemName: "Steel Binding Wire", category: "Materials", subCategory: "Steel Accessories", unit: "KG", defaultRate: 80 },
+  { itemCode: "MAT-CVR-01", itemName: "Concrete Cover Blocks", category: "Materials", subCategory: "Concrete Accessories", unit: "NOS", defaultRate: 5 },
+  { itemCode: "SRV-RCC-LAY", itemName: "RCC Casting Labour", category: "Services", subCategory: "Concrete", unit: "CUM", defaultRate: 1000 },
+  { itemCode: "MAT-DOR-01", itemName: "Flush Door & Frame Set", category: "Materials", subCategory: "Openings", unit: "NOS", defaultRate: 4500 },
+  { itemCode: "MAT-WIN-01", itemName: "UPVC Sliding Window & Chajja Set", category: "Materials", subCategory: "Openings", unit: "NOS", defaultRate: 3500 },
+  { itemCode: "MAT-ELE-01", itemName: "Concealed Electrical Conduits & Boxes", category: "Materials", subCategory: "MEP", unit: "SQFT", defaultRate: 45 },
+  { itemCode: "MAT-PLM-01", itemName: "Concealed Plumbing CPVC/SWR Lines", category: "Materials", subCategory: "MEP", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "SRV-BLD-LAY", itemName: "Full Building Civil Construction Labour", category: "Services", subCategory: "Building Civil", unit: "SQFT", defaultRate: 240 },
+  { itemCode: "MAT-TIL-01", itemName: "Vitrified Flooring & Wall Tiles", category: "Materials", subCategory: "Finishes", unit: "SQFT", defaultRate: 65 },
+  { itemCode: "MAT-SAN-01", itemName: "Sanitaryware & CP Fittings Bathroom Set", category: "Materials", subCategory: "Plumbing", unit: "SET", defaultRate: 18500 },
+  { itemCode: "MAT-RLG-01", itemName: "SS Railings & Main MS Gate Set", category: "Materials", subCategory: "Fabrication", unit: "SQFT", defaultRate: 45 },
+  { itemCode: "MAT-CWD-01", itemName: "Perimeter Compound Wall Masonry & Plaster", category: "Materials", subCategory: "Civil Outer", unit: "SQFT", defaultRate: 350 },
+  { itemCode: "MAT-OHT-01", itemName: "Overhead Water Tank OHT 1000L", category: "Materials", subCategory: "Utilities", unit: "NOS", defaultRate: 8500 },
+  { itemCode: "MAT-UGT-01", itemName: "Underground Sump Tank & Water Pump Set", category: "Materials", subCategory: "Utilities", unit: "SET", defaultRate: 45000 },
+  { itemCode: "SRV-TRN-LAY", itemName: "Turnkey Finishing Labour", category: "Services", subCategory: "Finishing", unit: "SQFT", defaultRate: 160 },
+  { itemCode: "SRV-COL-SHT", itemName: "Column Steel/Ply Shuttering Box Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "SRV-BEM-SHT", itemName: "Beam Steel/Ply Formwork Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "SRV-EXC-01", itemName: "Earthwork Pit Excavation Labour/JCB", category: "Services", subCategory: "Earthwork", unit: "CUM", defaultRate: 80 },
+  { itemCode: "SRV-FTG-SHT", itemName: "Footing Steel/Ply Formwork Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "SRV-STR-SHT", itemName: "Staircase Formwork Shuttering Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "MAT-STR-FIN", itemName: "Granite/Tile Step Tread & Riser Finish", category: "Materials", subCategory: "Finishes", unit: "SQFT", defaultRate: 120 },
+  { itemCode: "MAT-STR-RLG", itemName: "MS/SS Staircase Railing", category: "Materials", subCategory: "Fabrication", unit: "RMT", defaultRate: 850 },
+  { itemCode: "MAT-FDP-01", itemName: "Food Grade Non-Toxic Tank Epoxy Paint", category: "Materials", subCategory: "Coatings", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "MAT-FRP-01", itemName: "FRP Manhole Cover 2ft x 2ft", category: "Materials", subCategory: "Accessories", unit: "NOS", defaultRate: 1000 },
+  { itemCode: "SRV-TNK-SHT", itemName: "Water Tank Formwork Shuttering Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "MAT-PVC-01", itemName: "PVC Inlet/Outlet Sleeves & Vent Pipe Set", category: "Materials", subCategory: "Plumbing", unit: "SET", defaultRate: 450 },
+  { itemCode: "SRV-SEP-SHT", itemName: "Septic Tank Formwork Shuttering Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "MAT-SSM-01", itemName: "Size Stones SS Masonry", category: "Materials", subCategory: "Masonry", unit: "CFT", defaultRate: 38 },
+  { itemCode: "MAT-WPH-01", itemName: "PVC Drainage Weepholes 75mm", category: "Materials", subCategory: "Accessories", unit: "NOS", defaultRate: 120 },
+  { itemCode: "SRV-RET-SHT", itemName: "Retaining Wall Formwork Shuttering Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "MAT-ROF-SHT", itemName: "Metal GI/Galvalume Roof Sheeting", category: "Materials", subCategory: "Roofing", unit: "SQFT", defaultRate: 45 },
+  { itemCode: "MAT-ROF-PNT", itemName: "Anti-Corrosive Primer & Enamel Paint Coating", category: "Materials", subCategory: "Coatings", unit: "SQFT", defaultRate: 15 },
+  { itemCode: "SRV-TRU-LAB", itemName: "Roof Truss Fabrication & Erection Labour", category: "Services", subCategory: "Fabrication", unit: "KG", defaultRate: 12 },
+  { itemCode: "SRV-PIL-BOR", itemName: "Auger Pit Boring Labour & Rig Charges", category: "Services", subCategory: "Boring", unit: "RMT", defaultRate: 450 },
+  { itemCode: "SRV-LNT-SHT", itemName: "Lintel Formwork Shuttering Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 }
 ];
 
 async function ensureDefaultMasterRates(city = "Bengaluru") {
   for (const target of TARGET_ITEMS) {
     await MarketRate.updateOne(
-      { itemCode: target.itemCode },
+      { itemCode: target.itemCode, city },
       {
         $setOnInsert: {
+          masterItemCode: target.itemCode,
           itemCode: target.itemCode,
           itemName: target.itemName,
           category: target.category,
           subCategory: target.subCategory || "",
-          rateScope: target.rateScope || "",
           currentRate: target.defaultRate,
           previousRate: target.defaultRate,
-          unit: target.unit,
+          unit: normalizeUnit(target.unit),
           city,
+          state: "Karnataka",
           approvalStatus: "approved",
           isActive: true,
           sourceType: "admin_manual",
@@ -83,59 +136,41 @@ async function ensureDefaultMasterRates(city = "Bengaluru") {
   }
 }
 
-// TARGET 8 — GET /api/rates/ticker?city=Bengaluru
+// GET /api/rates/ticker
 router.get("/ticker", async (req, res) => {
   try {
     const city = String(req.query.city || "Bengaluru").trim();
     const todayStr = getIndianDateStr();
-
     await ensureDefaultMasterRates(city);
 
     const tickerList = [];
-
     for (const target of TARGET_ITEMS) {
-      // Substring regex match for Marketplace listings
       const itemRegex = new RegExp(target.itemName.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"), "i");
-
-      // Target 1: Marketplace Lowest-Rate Selection Query
       const activeListings = await MarketplaceListing.find({
         approvalStatus: "approved",
         status: { $in: ["approved", "active"] },
         isActive: true,
         isBlocked: false,
         rate: { $gt: 0 },
-        providerUserCode: { $exists: true, $ne: "" },
         $or: [{ itemName: itemRegex }, { masterItemCode: target.itemCode }]
       }).lean();
 
       let resolvedRate = 0;
       let sourceType = "admin";
-      let sourceLabel = "BuildMitra Admin Approved Rate";
-      let sourceRecordId = "";
-      let providerCount = 0;
-      let minimumRate = 0;
-      let maximumRate = 0;
-      let averageRate = 0;
+      let sourceLabel = "BuildMitra Admin Reference Rate";
 
       if (activeListings.length > 0) {
         const rates = activeListings.map(l => l.rate).filter(r => r > 0);
         if (rates.length > 0) {
-          providerCount = rates.length;
-          minimumRate = Math.min(...rates);
-          maximumRate = Math.max(...rates);
-          averageRate = Number((rates.reduce((sum, r) => sum + r, 0) / providerCount).toFixed(2));
-
-          resolvedRate = minimumRate;
+          resolvedRate = Math.min(...rates);
           sourceType = "marketplace";
           sourceLabel = "Lowest Approved Marketplace Rate";
-          sourceRecordId = activeListings[0]._id.toString();
         }
       }
 
-      // Target 1 Fallback: Latest Admin-Approved Rate
       if (resolvedRate === 0) {
         const adminRate = await MarketRate.findOne({
-          $or: [{ itemCode: target.itemCode }, { itemName: itemRegex }],
+          $or: [{ masterItemCode: target.itemCode }, { itemCode: target.itemCode }, { itemName: itemRegex }],
           approvalStatus: "approved",
           isActive: true,
           currentRate: { $gt: 0 }
@@ -145,126 +180,41 @@ router.get("/ticker", async (req, res) => {
           resolvedRate = adminRate.currentRate;
           sourceType = "admin";
           sourceLabel = "BuildMitra Admin Approved Rate";
-          sourceRecordId = adminRate._id.toString();
-          minimumRate = resolvedRate;
-          maximumRate = resolvedRate;
-          averageRate = resolvedRate;
-        }
-      }
-
-      // Omit item if no valid approved rate exists
-      if (resolvedRate <= 0) continue;
-
-      // Target 3: Daily Rate Snapshot Upsert into rateHistories
-      await RateHistory.updateOne(
-        {
-          snapshotDate: todayStr,
-          city,
-          itemCode: target.itemCode,
-          specification: target.subCategory || "",
-          unit: target.unit,
-          rateScope: target.rateScope || ""
-        },
-        {
-          $set: {
-            snapshotDate: todayStr,
-            city,
-            itemCode: target.itemCode,
-            itemName: target.itemName,
-            category: target.category,
-            subCategory: target.subCategory || "",
-            specification: target.subCategory || "",
-            brand: "",
-            rateScope: target.rateScope || "",
-            currentRate: resolvedRate,
-            unit: target.unit,
-            sourceType,
-            sourceLabel,
-            sourceRecordId,
-            providerCount,
-            minimumRate,
-            maximumRate,
-            averageRate
-          }
-        },
-        { upsert: true }
-      );
-
-      // Target 2: Today vs Yesterday Comparison
-      const previousSnapshot = await RateHistory.findOne({
-        itemCode: target.itemCode,
-        city,
-        unit: target.unit,
-        snapshotDate: { $lt: todayStr }
-      }).sort({ snapshotDate: -1 }).lean();
-
-      let changeAmount = 0;
-      let percentageChange = 0;
-      let trend = "new";
-      let displayColour = "neutral";
-      let yesterdayRate = null;
-      let comparisonDate = null;
-
-      if (previousSnapshot && previousSnapshot.currentRate > 0) {
-        yesterdayRate = previousSnapshot.currentRate;
-        comparisonDate = previousSnapshot.snapshotDate;
-        changeAmount = Number((resolvedRate - yesterdayRate).toFixed(2));
-        percentageChange = Number(((changeAmount / yesterdayRate) * 100).toFixed(2));
-
-        // Target 4: Construction-market colour logic
-        if (resolvedRate < yesterdayRate) {
-          trend = "cheaper";
-          displayColour = "green"; // Cheaper is green ↓
-        } else if (resolvedRate > yesterdayRate) {
-          trend = "costlier";
-          displayColour = "red"; // Costlier is red ↑
         } else {
-          trend = "unchanged";
-          displayColour = "grey"; // Unchanged is grey →
+          resolvedRate = target.defaultRate;
         }
       }
+
+      const prevRate = target.defaultRate;
+      const changeAmt = resolvedRate - prevRate;
+      const pctChange = prevRate > 0 ? Number(((changeAmt / prevRate) * 100).toFixed(2)) : 0;
+      const trend = changeAmt < 0 ? "cheaper" : changeAmt > 0 ? "costlier" : "new";
 
       tickerList.push({
         itemCode: target.itemCode,
         itemName: target.itemName,
         category: target.category,
         subCategory: target.subCategory || "",
-        specification: target.subCategory || "",
-        brand: "",
-        rateScope: target.rateScope || "",
         city,
         todayRate: resolvedRate,
-        yesterdayRate,
-        comparisonDate,
-        unit: target.unit,
-        changeAmount,
-        percentageChange: Math.abs(percentageChange),
-        trend,
-        displayColour,
+        yesterdayRate: prevRate,
+        changeAmount: isNaN(changeAmt) ? 0 : changeAmt,
+        percentageChange: isNaN(pctChange) ? 0 : pctChange,
+        trend: isNaN(pctChange) || pctChange === 0 ? "new" : trend,
+        unit: normalizeUnit(target.unit),
         sourceType,
         sourceLabel,
-        providerCount,
-        minimumRate,
-        maximumRate,
-        averageRate,
         updatedAt: new Date().toISOString()
       });
     }
 
-    res.json({
-      success: true,
-      count: tickerList.length,
-      city,
-      date: todayStr,
-      rates: tickerList.slice(0, 30) // Priority 30 items
-    });
+    res.json({ success: true, count: tickerList.length, city, date: todayStr, rates: tickerList });
   } catch (error) {
-    console.error("Ticker endpoint error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// GET Public Approved Market Rates (Legacy compatibility)
+// GET /api/rates/approved (Public & Calculators)
 router.get("/approved", async (req, res) => {
   try {
     await ensureDefaultMasterRates();
@@ -275,86 +225,63 @@ router.get("/approved", async (req, res) => {
   }
 });
 
-// GET Admin Rates Overview & Control
+// GET /api/rates/admin (Admin Dashboard)
 router.get("/admin", async (req, res) => {
   try {
     await ensureDefaultMasterRates();
-    const rates = await MarketRate.find({}).sort({ updatedAt: -1 }).lean();
+    const filter = {};
+
+    if (req.query.search) {
+      const q = String(req.query.search).trim();
+      const regex = new RegExp(q, "i");
+      filter.$or = [
+        { masterItemCode: regex },
+        { itemCode: regex },
+        { itemName: regex },
+        { category: regex },
+        { subCategory: regex },
+        { brand: regex },
+        { specification: regex }
+      ];
+    }
+
+    if (req.query.category && req.query.category !== "all") {
+      filter.category = new RegExp(String(req.query.category).trim(), "i");
+    }
+
+    if (req.query.itemType && req.query.itemType !== "all") {
+      filter.itemType = String(req.query.itemType).trim().toLowerCase();
+    }
+
+    if (req.query.status && req.query.status !== "all") {
+      if (req.query.status === "active") filter.isActive = true;
+      if (req.query.status === "inactive") filter.isActive = false;
+    }
+
+    if (req.query.approvalStatus && req.query.approvalStatus !== "all") {
+      filter.approvalStatus = String(req.query.approvalStatus).trim().toLowerCase();
+    }
+
+    const rates = await MarketRate.find(filter).sort({ updatedAt: -1 }).lean();
     const history = await RateHistory.find({}).sort({ createdAt: -1 }).limit(50).lean();
-    const marketplaceListings = await MarketplaceListing.find({ status: "approved" }).select("itemName rate providerUserCode providerName providerCity").lean();
 
-    res.json({
-      success: true,
-      count: rates.length,
-      rates,
-      history,
-      marketplaceListingsCount: marketplaceListings.length
+    const masterCodes = rates.map(r => r.masterItemCode || r.itemCode).filter(Boolean);
+    const listingCounts = await MarketplaceListing.aggregate([
+      { $match: { masterItemCode: { $in: masterCodes } } },
+      { $group: { _id: "$masterItemCode", count: { $sum: 1 } } }
+    ]);
+    const listingMap = {};
+    listingCounts.forEach(l => { listingMap[l._id] = l.count; });
+
+    const formatted = rates.map(r => {
+      const code = r.masterItemCode || r.itemCode;
+      return {
+        ...r,
+        providerCount: listingMap[code] || 0
+      };
     });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 
-// POST Admin Approve Rate
-router.post("/approve", async (req, res) => {
-  try {
-    const { itemCode, newRate } = req.body;
-    const rateDoc = await MarketRate.findOne({ itemCode });
-    if (!rateDoc) {
-      return res.status(404).json({ success: false, message: "Item not found" });
-    }
-
-    const updatedCurrentRate = Number(newRate) || rateDoc.currentRate;
-    rateDoc.previousRate = rateDoc.currentRate;
-    rateDoc.currentRate = updatedCurrentRate;
-    rateDoc.approvalStatus = "approved";
-    rateDoc.isActive = true;
-    rateDoc.approvedBy = req.body.approvedBy || "Admin";
-    rateDoc.approvedAt = new Date();
-    await rateDoc.save();
-
-    res.json({ success: true, message: "Rate approved successfully", rate: rateDoc });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// POST Admin Add/Update Rate
-router.post("/add", async (req, res) => {
-  try {
-    const { itemCode, itemName, category, currentRate, unit, city } = req.body;
-    if (!itemCode || !itemName || !currentRate || !unit) {
-      return res.status(400).json({ success: false, message: "itemCode, itemName, currentRate, unit are required" });
-    }
-
-    let rateDoc = await MarketRate.findOne({ itemCode });
-    if (rateDoc) {
-      rateDoc.previousRate = rateDoc.currentRate;
-      rateDoc.currentRate = Number(currentRate);
-      rateDoc.itemName = itemName;
-      rateDoc.category = category || rateDoc.category;
-      rateDoc.unit = unit;
-      rateDoc.city = city || rateDoc.city;
-      rateDoc.approvalStatus = "approved";
-      rateDoc.isActive = true;
-      await rateDoc.save();
-    } else {
-      rateDoc = await MarketRate.create({
-        itemCode,
-        itemName,
-        category: category || "Materials",
-        currentRate: Number(currentRate),
-        previousRate: Number(currentRate),
-        unit,
-        city: city || "Bengaluru",
-        approvalStatus: "approved",
-        isActive: true,
-        sourceType: "admin_manual",
-        sourceName: "BuildMitra Approved"
-      });
-    }
-
-    res.json({ success: true, rate: rateDoc });
+    res.json({ success: true, count: formatted.length, rates: formatted, history });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
