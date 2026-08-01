@@ -106,7 +106,24 @@ const TARGET_ITEMS = [
   { itemCode: "MAT-ROF-PNT", itemName: "Anti-Corrosive Primer & Enamel Paint Coating", category: "Materials", subCategory: "Coatings", unit: "SQFT", defaultRate: 15 },
   { itemCode: "SRV-TRU-LAB", itemName: "Roof Truss Fabrication & Erection Labour", category: "Services", subCategory: "Fabrication", unit: "KG", defaultRate: 12 },
   { itemCode: "SRV-PIL-BOR", itemName: "Auger Pit Boring Labour & Rig Charges", category: "Services", subCategory: "Boring", unit: "RMT", defaultRate: 450 },
-  { itemCode: "SRV-LNT-SHT", itemName: "Lintel Formwork Shuttering Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 }
+  { itemCode: "SRV-LNT-SHT", itemName: "Lintel Formwork Shuttering Rental & Fixing", category: "Services", subCategory: "Formwork", unit: "SQFT", defaultRate: 35 },
+  { itemCode: "MAT-PLY-18", itemName: "18mm BWP/BWR Plywood", category: "Materials", subCategory: "Plywood", unit: "SQFT", defaultRate: 80 },
+  { itemCode: "MAT-PLY-12", itemName: "12mm BWP Plywood", category: "Materials", subCategory: "Plywood", unit: "SQFT", defaultRate: 65 },
+  { itemCode: "MAT-PLY-06", itemName: "6mm MR Plywood", category: "Materials", subCategory: "Plywood", unit: "SQFT", defaultRate: 40 },
+  { itemCode: "MAT-LAM-EXT", itemName: "External Decorative Laminate 1.0mm", category: "Materials", subCategory: "Laminates", unit: "SQFT", defaultRate: 45 },
+  { itemCode: "MAT-LAM-INT", itemName: "Internal Liner Laminate 0.8mm", category: "Materials", subCategory: "Laminates", unit: "SQFT", defaultRate: 30 },
+  { itemCode: "MAT-EDG-BND", itemName: "PVC Edge Banding Tape 2mm", category: "Materials", subCategory: "Hardware", unit: "M", defaultRate: 8 },
+  { itemCode: "MAT-COR-BED", itemName: "PVC/Aluminium Corner Beads", category: "Materials", subCategory: "Hardware", unit: "M", defaultRate: 15 },
+  { itemCode: "MAT-HNG-SFT", itemName: "Soft-Close 3D Hydraulic Hinges", category: "Materials", subCategory: "Hardware", unit: "NOS", defaultRate: 35 },
+  { itemCode: "MAT-HND-DES", itemName: "Designer Handles & Profile Pulls", category: "Materials", subCategory: "Hardware", unit: "NOS", defaultRate: 50 },
+  { itemCode: "MAT-LCK-MRT", itemName: "Mortise & Cylinder Locks", category: "Materials", subCategory: "Hardware", unit: "NOS", defaultRate: 120 },
+  { itemCode: "MAT-DRW-CHN", itemName: "Tandem Box / Soft-Close Drawer Channels", category: "Materials", subCategory: "Hardware", unit: "SET", defaultRate: 80 },
+  { itemCode: "MAT-SLD-TRK", itemName: "Sliding Wardrobe Roller Tracks", category: "Materials", subCategory: "Hardware", unit: "RFT", defaultRate: 250 },
+  { itemCode: "MAT-SS304-BSK", itemName: "Modular SS 304 Kitchen Baskets", category: "Materials", subCategory: "Hardware", unit: "SET", defaultRate: 450 },
+  { itemCode: "MAT-FEV-ADH", itemName: "Fevicol D3 Synthetic Resin Adhesive", category: "Materials", subCategory: "Consumables", unit: "KG", defaultRate: 60 },
+  { itemCode: "MAT-NLS-FST", itemName: "Nails & Fasteners", category: "Materials", subCategory: "Consumables", unit: "KG", defaultRate: 30 },
+  { itemCode: "MAT-SCR-WLL", itemName: "Consumable Screws & Plugs", category: "Materials", subCategory: "Consumables", unit: "BOX", defaultRate: 40 },
+  { itemCode: "MAT-MIR-01", itemName: "Mirrors 5mm Float Glass", category: "Materials", subCategory: "Glass", unit: "SQFT", defaultRate: 50 }
 ];
 
 async function ensureDefaultMasterRates(city = "Bengaluru") {

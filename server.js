@@ -1,3 +1,4 @@
+const labourNetRoutes = require('./routes/labourNet');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -6,16 +7,16 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
+// Middleware with 50MB payload limits to handle image uploads and high-res property data
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://192.168.31.248:3000', 'https://buildmitra-frontend.vercel.app'],
+  origin: true,
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Serve static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use(express.urlencoded({ extended: true }));
 
 // Database Connection
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -55,6 +56,9 @@ app.use('/api/rates', require('./routes/rates'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/marketplace', require('./routes/marketplace'));
 app.use('/api/realestate', require('./routes/realestate'));
+app.use('/api/construction-videos', require('./routes/construction-videos'));
+app.use('/api/expert-talks', require('./routes/expert-talks'));
+app.use('/api/learn-earn/games', require('./routes/games'));
 
 // Health Check
 app.get('/api/health', (req, res) => {
@@ -77,7 +81,9 @@ app.get('/', (req, res) => {
       leaderboard: '/api/leaderboard',
       certificate: '/api/certificate/generate',
       guidelines: '/api/guidelines',
-      auth: '/api/auth/register'
+      auth: '/api/auth/register',
+      constructionVideos: '/api/construction-videos',
+      expertTalks: '/api/expert-talks'
     }
   });
 });
@@ -85,7 +91,7 @@ app.get('/', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(500).json({ 
+  res.status(err.status || 500).json({ 
     success: false, 
     message: err.message || 'Internal server error' 
   });
@@ -109,32 +115,13 @@ app.put('/api/enquiry/update/:enquiryCode', async (req, res) => {
   }
 });
 
+const { startExpertTalkSyncJob } = require('./jobs/expertTalkSyncJob');
+
 const PORT = process.env.PORT || 5000;
+app.use('/api/labour-net', labourNetRoutes);
 
-/* BuildMitra Master Image Library */
-app.use("/api/master-images", require("./routes/masterImages"));
-app.listen(PORT, "0.0.0.0", () => {
-  console.log('🚀 Server running on http://localhost:' + PORT);
-  console.log('📊 Health Check: http://localhost:' + PORT + '/api/health');
-  console.log('📚 Available endpoints:');
-  console.log('   - GET  /api/quiz/questions');
-  console.log('   - POST /api/quiz/submit');
-  console.log('   - GET  /api/leaderboard');
-  console.log('   - POST /api/leaderboard/update');
-  console.log('   - POST /api/certificate/generate');
-  console.log('   - GET  /api/guidelines');
-  console.log('   - POST /api/auth/register');
-  console.log('   - POST /api/auth/login');
-  console.log('   - GET  /api/products');
-  console.log('   - GET  /api/products/categories/all');
+app.listen(PORT, () => {
+  console.log(`🚀 BuildMitra Backend running on port ${PORT}`);
+  startExpertTalkSyncJob();
 });
-
-module.exports = app;
-// Force redeploy
-
-
-
-
-
-
 

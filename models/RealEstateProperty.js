@@ -40,27 +40,19 @@ const RealEstatePropertySchema = new mongoose.Schema(
 
     transactionType: {
       type: String,
-      enum: ["sale", "rent", "lease", "buy-requirement", "rent-requirement"],
-      required: true,
+      enum: ["sale", "rent", "lease", "buy-requirement", "rent-requirement", "Sale", "Rent"],
+      default: "sale",
+      index: true,
+    },
+    listingType: {
+      type: String,
+      default: "Sale",
       index: true,
     },
 
     propertyType: {
       type: String,
-      enum: [
-        "plot",
-        "apartment",
-        "villa",
-        "house",
-        "commercial",
-        "industrial",
-        "agriculture",
-        "farm-land",
-        "revenue-land",
-        "bmrda",
-        "other"
-      ],
-      required: true,
+      default: "plot",
       index: true,
     },
 
@@ -81,9 +73,18 @@ const RealEstatePropertySchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
-    area: {
+    locality: {
       type: String,
       default: "",
+      trim: true,
+    },
+    area: {
+      type: mongoose.Schema.Types.Mixed,
+      default: 0,
+    },
+    state: {
+      type: String,
+      default: "Karnataka",
       trim: true,
     },
     pincode: {
@@ -102,29 +103,52 @@ const RealEstatePropertySchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    latitude: { type: Number },
+    longitude: { type: Number },
 
+    // Size / Area
     plotArea: { type: Number, default: 0 },
     builtUpArea: { type: Number, default: 0 },
+    superBuiltUpArea: { type: Number, default: 0 },
+    totalArea: { type: Number, default: 0 },
+    areaValue: { type: Number, default: 0 },
     areaUnit: { type: String, default: "sqft" },
 
+    // Room Specs
     bedrooms: { type: Number, default: 0 },
     bathrooms: { type: Number, default: 0 },
     balconies: { type: Number, default: 0 },
+    floorNumber: { type: Number, default: 0 },
     floors: { type: Number, default: 0 },
+    totalFloors: { type: Number, default: 0 },
     propertyAge: { type: String, default: "" },
+    possessionStatus: { type: String, default: "Ready to Move" },
     facing: { type: String, default: "" },
     furnishing: { type: String, default: "" },
     parking: { type: String, default: "" },
+    approvalType: { type: String, default: "" },
 
+    // Pricing
     askingPrice: { type: Number, default: 0 },
+    price: { type: Number, default: 0 },
     monthlyRent: { type: Number, default: 0 },
     depositAmount: { type: Number, default: 0 },
     ratePerSqft: { type: Number, default: 0 },
+    pricePerSqft: { type: Number, default: 0 },
     negotiable: { type: Boolean, default: false },
 
     amenities: [{ type: String }],
+    
+    // Media references (Max 3 Images, Max 1 Video, Max 5 Documents)
+    images: [{ type: String }],
     imageUrls: [{ type: String }],
+    coverImage: { type: String, default: "" },
+    imageUrl: { type: String, default: "" },
+    
+    videoUrl: { type: String, default: "" },
     videoUrls: [{ type: String }],
+    
+    documents: [mongoose.Schema.Types.Mixed],
     documentUrls: [{ type: String }],
 
     verificationStatus: {
@@ -135,15 +159,14 @@ const RealEstatePropertySchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: [
-        "pending",
-        "approved",
-        "rejected",
-        "sold",
-        "rented",
-        "inactive"
-      ],
-      default: "pending",
+      default: "Available",
+      index: true,
+    },
+
+    approvalStatus: {
+      type: String,
+      enum: ["Pending", "Approved", "Rejected", "pending", "approved", "rejected"],
+      default: "Approved",
       index: true,
     },
 
@@ -158,12 +181,19 @@ const RealEstatePropertySchema = new mongoose.Schema(
 
     views: { type: Number, default: 0 },
     enquiryCount: { type: Number, default: 0 },
+
+    // Backward compatibility legacy aliases
+    ownerUserCode: { type: String, default: "" },
+    agentCode: { type: String, default: "" },
+    category: { type: String, default: "" },
+    purpose: { type: String, default: "" },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 RealEstatePropertySchema.index({
   status: 1,
+  approvalStatus: 1,
   isActive: 1,
   isBlocked: 1,
   transactionType: 1,
@@ -176,6 +206,7 @@ RealEstatePropertySchema.index({
   description: "text",
   city: "text",
   area: "text",
+  locality: "text",
   providerName: "text",
 });
 
