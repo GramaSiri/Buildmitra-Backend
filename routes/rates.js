@@ -304,4 +304,40 @@ router.get("/admin", async (req, res) => {
   }
 });
 
+const { resolveBulkRates, resolveSingleRate } = require("../services/rateResolverService");
+
+// POST /api/rates/resolve-bulk (Calculators & BOQs Phase-1 Rate Resolver)
+router.post("/resolve-bulk", async (req, res) => {
+  try {
+    const city = req.body?.city || "Bengaluru";
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const resolvedItems = await resolveBulkRates(items, city);
+    res.json({
+      success: true,
+      city,
+      count: resolvedItems.length,
+      resolvedItems
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/rates/resolve (Single Item Resolver)
+router.post("/resolve", async (req, res) => {
+  try {
+    const city = req.body?.city || "Bengaluru";
+    const item = req.body?.item || req.body || {};
+    const resolved = await resolveSingleRate(item, city);
+    res.json({
+      success: true,
+      city,
+      resolvedItem: resolved
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;
+

@@ -38,6 +38,9 @@ const MarketRateSchema = new mongoose.Schema(
       default: "approved",
       index: true
     },
+    primaryMasterItemCode: { type: String, default: "", trim: true, index: true },
+    linkedLabourItemCode: { type: String, default: "", trim: true, index: true },
+    rateComponent: { type: String, enum: ["primary", "labour", ""], default: "primary", index: true },
     isActive: { type: Boolean, default: true, index: true },
     approvedBy: { type: String, default: "Admin", trim: true },
     approvedAt: Date,

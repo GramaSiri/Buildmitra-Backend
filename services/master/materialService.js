@@ -1,73 +1,80 @@
-const MasterMaterial = require("../../models/MasterMaterial");
-
-function normalizeMaterial(m = {}, index = 0) {
-  const code = m.material_code || m.masterCode || `MAT-${Date.now()}-${index}`;
-
-  return {
-    material_code: code,
-    masterCode: code,
-    product_name: m.product_name || m.itemName || m.name || "",
-    itemName: m.itemName || m.product_name || m.name || "",
-    category: m.category || "General",
-    subcategory: m.subcategory || "",
-    brand: m.brand || "",
-    specification: m.specification || m.description || "",
-    unit: m.unit || "",
-    rate: Number(m.rate || 0),
-    gst: Number(m.gst || 0),
-    stock: Number(m.stock || 0),
-    min_order: Number(m.min_order || 0),
-    image: m.image || m.imageUrl || "",
-    imageUrl: m.imageUrl || m.image || "",
-    description: m.description || m.specification || "",
-    status: m.status || "Active"
-  };
-}
+const MasterItem = require("../../models/MasterItem");
+const MarketRate = require("../../models/MarketRate");
+const { createOrUpdateMasterItem } = require("../marketplaceService");
 
 async function getAllMaterials() {
-  return await MasterMaterial.find({ status: { $ne: "Deleted" } })
-    .sort({ product_name: 1 })
-    .lean();
+  const [items, rates] = await Promise.all([
+    MasterItem.find({ status: "active" }).lean(),
+    MarketRate.find({ approvalStatus: "approved", isActive: true }).lean()
+  ]);
+
+  const rateMap = new Map();
+  rates.forEach(r => {
+    if (r.masterItemCode) rateMap.set(r.masterItemCode, r.currentRate);
+    if (r.itemCode) rateMap.set(r.itemCode, r.currentRate);
+  });
+
+  return items.map(i => ({
+    ...i,
+    id: i._id,
+    material_code: i.masterItemCode,
+    masterItemCode: i.masterItemCode,
+    product_name: i.itemName,
+    itemName: i.itemName,
+    category: i.category,
+    subCategory: i.subCategory,
+    brand: i.brand,
+    specification: i.specification,
+    unit: i.unit,
+    rate: rateMap.get(i.masterItemCode) ?? i.referenceRate ?? i.rate ?? 0,
+    referenceRate: rateMap.get(i.masterItemCode) ?? i.referenceRate ?? 0,
+    status: i.status
+  }));
 }
 
 async function addMaterial(material) {
-  const doc = normalizeMaterial(material);
-  return await MasterMaterial.create(doc);
+  const result = await createOrUpdateMasterItem(material, "admin");
+  return result.item;
 }
 
 async function bulkAddMaterials(items) {
-  if (!items || !items.length) return { inserted: 0 };
+  if (!items || !items.length) return { inserted: 0, updated: 0, totalRows: 0 };
 
   let inserted = 0;
+  let updated = 0;
+  let skipped = 0;
 
   for (let i = 0; i < items.length; i++) {
-    const doc = normalizeMaterial(items[i], i);
-
-    if (!doc.product_name) continue;
-
-    await MasterMaterial.updateOne(
-      { material_code: doc.material_code },
-      { $set: doc },
-      { upsert: true }
-    );
-
-    inserted++;
+    const row = items[i];
+    const name = row.itemName || row.product_name || row.name;
+    if (!name) {
+      skipped++;
+      continue;
+    }
+    const res = await createOrUpdateMasterItem(row, "admin");
+    if (res.isNew) inserted++;
+    else updated++;
   }
 
-  return { inserted };
+  return { inserted, updated, skipped, totalRows: items.length };
 }
 
 async function updateMaterial(id, material) {
-  const doc = normalizeMaterial(material);
-  return await MasterMaterial.findByIdAndUpdate(id, doc, { new: true });
+  const item = await MasterItem.findById(id);
+  if (!item) throw new Error("Item not found");
+  const result = await createOrUpdateMasterItem({ ...material, masterItemCode: item.masterItemCode }, "admin");
+  return result.item;
 }
 
 async function deleteMaterial(id) {
-  return await MasterMaterial.findByIdAndUpdate(
-    id,
-    { status: "Deleted" },
-    { new: true }
-  );
+  const item = await MasterItem.findByIdAndUpdate(id, { status: "inactive" }, { new: true });
+  if (item?.masterItemCode) {
+    await MarketRate.updateMany(
+      { $or: [{ masterItemCode: item.masterItemCode }, { itemCode: item.masterItemCode }] },
+      { $set: { isActive: false } }
+    );
+  }
+  return item;
 }
 
 module.exports = {

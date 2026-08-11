@@ -43,6 +43,9 @@ const MasterItemSchema = new mongoose.Schema(
       }
     ],
     referenceRate: { type: Number, default: 0 },
+    primaryMasterItemCode: { type: String, default: "", trim: true, index: true },
+    linkedLabourItemCode: { type: String, default: "", trim: true, index: true },
+    rateComponent: { type: String, enum: ["primary", "labour", ""], default: "primary", index: true },
     status: { type: String, enum: ["active", "inactive"], default: "active", index: true },
     createdBy: { type: String, default: "admin" },
     updatedBy: { type: String, default: "admin" },

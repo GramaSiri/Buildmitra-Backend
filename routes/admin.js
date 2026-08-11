@@ -1,3 +1,4 @@
+const MarketRate = require("../models/MarketRate");
 const express = require('express');
 const router = express.Router();
 const fs = require('fs');
@@ -215,8 +216,14 @@ function listingIdentity(id) {
   return { $or: [{ listingCode: id }, { _id: /^[a-f\d]{24}$/i.test(id) ? id : undefined }].filter((x) => Object.values(x)[0]) };
 }
 
+const { updateCombinedBOQRate, searchMasterItemsWithBOQLinks } = require("../services/rateResolverService");
+
 router.get("/master-items", requireAdmin, async (req, res) => {
   try {
+    if (req.query.search) {
+      const items = await searchMasterItemsWithBOQLinks(req.query.search);
+      return res.json({ success: true, items, page: 1, limit: items.length, total: items.length, pages: 1 });
+    }
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = Math.min(200, Math.max(1, Number(req.query.limit || 50)));
     const filter = buildMasterFilter(req.query);
@@ -225,6 +232,19 @@ router.get("/master-items", requireAdmin, async (req, res) => {
       MasterItem.countDocuments(filter),
     ]);
     res.json({ success: true, items, page, limit, total, pages: Math.ceil(total / limit) });
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.put("/boq-rates/:code", requireAdmin, async (req, res) => {
+  try {
+    const payload = {
+      ...(req.body || {}),
+      masterItemCode: req.params.code || req.body?.masterItemCode
+    };
+    const result = await updateCombinedBOQRate(payload, req.body?.adminCode || "admin");
+    res.json(result);
   } catch (error) {
     res.status(error.status || 500).json({ success: false, message: error.message });
   }
@@ -254,22 +274,121 @@ router.put("/master-items/:masterItemCode", requireAdmin, async (req, res) => {
 router.post("/master-items/bulk", requireAdmin, async (req, res) => {
   try {
     const rows = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!rows.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Upload Failed: No rows provided in bulk upload payload.",
+        totalRows: 0,
+        inserted: 0,
+        updated: 0,
+        skipped: 0,
+        failed: 0
+      });
+    }
+
     const seen = new Set();
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    let failed = 0;
     const items = [];
     const errors = [];
+
     for (const row of rows) {
-      const key = [row.itemType, row.itemName || row.item || row.name, row.brand, row.specification, row.unit || row.uom].join("|").toLowerCase();
-      if (seen.has(key)) continue;
+      const name = String(row.itemName || row.item || row.name || row.product_name || "").trim();
+      if (!name) {
+        skipped++;
+        continue;
+      }
+
+      const itemType = String(row.itemType || row.type || row.kind || "material").trim().toLowerCase();
+      const code = String(row.masterItemCode || row.code || row.itemCode || "").trim().toUpperCase();
+
+      const key = code || [itemType, name, row.brand || "", row.unit || ""].join("|").toLowerCase();
+      if (seen.has(key)) {
+        skipped++;
+        continue;
+      }
       seen.add(key);
+
       try {
-        items.push(await createOrUpdateMasterItem(row, req.body?.adminCode || "admin"));
+        const result = await createOrUpdateMasterItem(row, req.body?.adminCode || "admin");
+        if (result.isNew) {
+          inserted++;
+        } else {
+          updated++;
+        }
+        items.push(result.item);
       } catch (error) {
+        failed++;
         errors.push({ row, message: error.message });
       }
     }
-    res.json({ success: errors.length === 0, count: items.length, items, errors });
+
+    const totalProcessed = inserted + updated;
+    if (totalProcessed === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Upload Failed: 0 rows were inserted or updated into MongoDB.",
+        totalRows: rows.length,
+        inserted: 0,
+        updated: 0,
+        skipped,
+        failed
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Bulk upload successful: ${inserted} inserted, ${updated} updated.`,
+      totalRows: rows.length,
+      inserted,
+      updated,
+      skipped,
+      failed,
+      count: items.length,
+      items,
+      errors
+    });
   } catch (error) {
-    res.status(error.status || 500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get("/master-counts", requireAdmin, async (req, res) => {
+  try {
+    const [
+      materials,
+      labour,
+      services,
+      machines,
+      totalItems,
+      approvedRates,
+      missingRates
+    ] = await Promise.all([
+      MasterItem.countDocuments({ itemType: "material", status: "active" }),
+      MasterItem.countDocuments({ itemType: "labour", status: "active" }),
+      MasterItem.countDocuments({ itemType: "service", status: "active" }),
+      MasterItem.countDocuments({ itemType: "machine", status: "active" }),
+      MasterItem.countDocuments({ status: "active" }),
+      MarketRate.countDocuments({ approvalStatus: "approved", isActive: true }),
+      MasterItem.countDocuments({ status: "active", referenceRate: { $lte: 0 } })
+    ]);
+
+    res.json({
+      success: true,
+      counts: {
+        masterMaterials: materials,
+        masterLabour: labour,
+        masterServices: services,
+        masterMachines: machines,
+        totalMasterItems: totalItems,
+        approvedMarketRates: approvedRates,
+        missingRateItems: missingRates
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

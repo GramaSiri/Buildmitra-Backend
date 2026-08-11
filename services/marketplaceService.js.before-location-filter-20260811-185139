@@ -314,66 +314,9 @@ function buildListingFilter(query = {}, publicOnly = false) {
   if (query.category) filter.category = new RegExp(cleanText(query.category), "i");
   if (query.subCategory) filter.subCategory = new RegExp(cleanText(query.subCategory), "i");
   if (query.brand) filter.brand = new RegExp(cleanText(query.brand), "i");
-  /*
-   * Location matching:
-   * - PIN code = exact normalized 6-digit match
-   * - City / Area = case-insensitive
-   * - Legacy listing location/address fields are supported
-   * - City + Area + PIN combine as refinements
-   */
-  const locationClauses = [];
-
-  if (query.city) {
-    const city = cleanText(query.city).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-    if (city) {
-      const cityRegex = new RegExp(city, "i");
-
-      locationClauses.push({
-        $or: [
-          { providerCity: cityRegex },
-          { location: cityRegex },
-          { providerAddress: cityRegex },
-        ],
-      });
-    }
-  }
-
-  if (query.area) {
-    const area = cleanText(query.area).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-    if (area) {
-      const areaRegex = new RegExp(area, "i");
-
-      locationClauses.push({
-        $or: [
-          { providerArea: areaRegex },
-          { serviceArea: areaRegex },
-          { location: areaRegex },
-          { providerAddress: areaRegex },
-        ],
-      });
-    }
-  }
-
-  if (query.pincode) {
-    const pincode = cleanText(query.pincode)
-      .replace(/\D/g, "")
-      .slice(-6);
-
-    if (pincode.length === 6) {
-      locationClauses.push({
-        $or: [
-          { providerPincode: pincode },
-          { pincode },
-        ],
-      });
-    }
-  }
-
-  if (locationClauses.length) {
-    filter.$and = [...(filter.$and || []), ...locationClauses];
-  }
+  if (query.city) filter.providerCity = new RegExp(cleanText(query.city), "i");
+  if (query.area) filter.providerArea = new RegExp(cleanText(query.area), "i");
+  if (query.pincode) filter.providerPincode = new RegExp(cleanText(query.pincode), "i");
   if (query.providerUserCode) filter.providerUserCode = cleanText(query.providerUserCode).toUpperCase();
   if (query.minPrice || query.maxPrice) {
     filter.rate = {};
@@ -450,4 +393,3 @@ module.exports = {
   buildListingFilter,
   createNewItemRequest,
 };
-
