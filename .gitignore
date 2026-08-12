@@ -4,3 +4,6 @@ node_modules/
 logs/
 *.log
 uploads/
+
+# Local BuildMitra safety backups
+_archive/
