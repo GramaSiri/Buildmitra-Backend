@@ -1,11 +1,13 @@
 const labourNetRoutes = require('./routes/labourNet');
 const express = require('express');
+const securityShield = require('./middleware/securityShield');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
 const app = express();
+securityShield(app);
 
 // Middleware with 50MB payload limits to handle image uploads and high-res property data
 app.use(cors({
@@ -124,4 +126,5 @@ app.listen(PORT, () => {
   console.log(`🚀 BuildMitra Backend running on port ${PORT}`);
   startExpertTalkSyncJob();
 });
+
 
