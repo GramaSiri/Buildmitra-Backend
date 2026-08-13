@@ -3,7 +3,11 @@
 node_modules/
 logs/
 *.log
-uploads/
-
+uploads/*
+!uploads/master-materials/
+!uploads/master-materials/**
+!uploads/material-images/
+!uploads/material-images/**
 # Local BuildMitra safety backups
 _archive/
+
