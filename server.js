@@ -126,10 +126,89 @@ app.use('/api/labour-net', labourNetRoutes);
 /* BuildMitra Admin Master Images & Rates */
 app.use("/api/master-images", require("./routes/masterImages"));
 
+
+/* BM_DIRECT_MARKETPLACE_IMAGE_ROUTE
+   Permanent public delivery of Admin-approved Marketplace GridFS images.
+*/
+app.get("/api/marketplace/images/:id", async (req, res) => {
+  try {
+    const mongoose = require("mongoose");
+    const { GridFSBucket, ObjectId } = require("mongodb");
+
+    if (!mongoose.connection.db) {
+      return res.status(503).json({
+        success: false,
+        message: "Database not ready"
+      });
+    }
+
+    if (!ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid image id"
+      });
+    }
+
+    const db = mongoose.connection.db;
+    const bucketName = "marketplaceImages";
+    const bucket = new GridFSBucket(db, { bucketName });
+    const objectId = new ObjectId(req.params.id);
+
+    const file = await db
+      .collection(`${bucketName}.files`)
+      .findOne({ _id: objectId });
+
+    if (!file) {
+      return res.status(404).json({
+        success: false,
+        message: "Marketplace image not found"
+      });
+    }
+
+    const contentType =
+      file.contentType ||
+      file.metadata?.contentType ||
+      file.metadata?.mimetype ||
+      "application/octet-stream";
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Length", String(file.length));
+    res.setHeader("Cache-Control", "public, max-age=86400");
+
+    const stream = bucket.openDownloadStream(objectId);
+
+    stream.on("error", (err) => {
+      console.error("Marketplace image stream error:", err);
+
+      if (!res.headersSent) {
+        res.status(404).json({
+          success: false,
+          message: "Marketplace image unavailable"
+        });
+      } else {
+        res.end();
+      }
+    });
+
+    stream.pipe(res);
+
+  } catch (error) {
+    console.error("Marketplace direct image route error:", error);
+
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: "Unable to load marketplace image"
+      });
+    }
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 BuildMitra Backend running on port ${PORT}`);
   startExpertTalkSyncJob();
 });
+
 
 
 
