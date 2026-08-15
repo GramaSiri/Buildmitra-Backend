@@ -204,10 +204,22 @@ app.get("/api/marketplace/images/:id", async (req, res) => {
   }
 });
 
+
+/* BM_RENDER_VERIFY_START */
+app.get("/api/bm-render-verify", (req, res) => {
+  res.status(200).json({
+    success: true,
+    marker: "BM-LIVE-VERIFY-20260815-183359",
+    entrypoint: "server.js",
+    marketplaceImageRoute: true
+  });
+});
+/* BM_RENDER_VERIFY_END */
 app.listen(PORT, () => {
   console.log(`🚀 BuildMitra Backend running on port ${PORT}`);
   startExpertTalkSyncJob();
 });
+
 
 
 
