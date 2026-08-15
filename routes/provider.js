@@ -1,5 +1,38 @@
 const express = require("express");
 const router = express.Router();
+function absoluteMarketplaceImage(req, value) {
+  const raw = String(value || "").trim();
+
+  if (!raw) return "";
+
+  if (/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+
+  if (raw.startsWith("/api/")) {
+    const forwardedProto = String(
+      req.headers["x-forwarded-proto"] || ""
+    ).split(",")[0].trim();
+
+    const protocol =
+      forwardedProto ||
+      req.protocol ||
+      "https";
+
+    const forwardedHost = String(
+      req.headers["x-forwarded-host"] || ""
+    ).split(",")[0].trim();
+
+    const host =
+      forwardedHost ||
+      req.get("host");
+
+    return `${protocol}://${host}${raw}`;
+  }
+
+  return raw;
+}
+
 const MarketplaceListing = require("../models/MarketplaceListing");
 const MasterItem = require("../models/MasterItem");
 const NewItemRequest = require("../models/NewItemRequest");
@@ -212,8 +245,8 @@ router.get("/marketplace-listings", async (req, res) => {
         ...listing,
 
         // Admin MasterItem is authoritative for canonical product image.
-        imageUrl: canonicalImage || "",
-        masterImageUrl: canonicalImage || "",
+        imageUrl: absoluteMarketplaceImage(req, canonicalImage || ""),
+        masterImageUrl: absoluteMarketplaceImage(req, canonicalImage || ""),
 
         // Preserve canonical catalogue data where available.
         itemName:
@@ -430,6 +463,7 @@ router.post("/reports/:providerUserCode/save", async (req, res) => {
 });
 
 module.exports = router;
+
 
 
 
