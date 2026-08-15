@@ -122,9 +122,14 @@ const { startExpertTalkSyncJob } = require('./jobs/expertTalkSyncJob');
 const PORT = process.env.PORT || 5000;
 app.use('/api/labour-net', labourNetRoutes);
 
+
+/* BuildMitra Admin Master Images & Rates */
+app.use("/api/master-images", require("./routes/masterImages"));
+
 app.listen(PORT, () => {
   console.log(`🚀 BuildMitra Backend running on port ${PORT}`);
   startExpertTalkSyncJob();
 });
+
 
 
