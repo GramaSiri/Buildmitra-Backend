@@ -154,50 +154,21 @@ router.post("/", async (req, res) => {
     const provider = await resolveProvider(req.body, isRealEstate);
     const adminPhone = configuredAdminPhone();
 
-    /*
-      Marketplace product enquiries already contain the exact supplier
-      selected by the buyer. Route those directly to that supplier.
-
-      Real-estate / generic enquiries retain the existing Admin-first flow.
-    */
-    const directMarketplaceSupplier =
-      !isRealEstate &&
-      Boolean(provider.providerUserCode) &&
-      Boolean(text(req.body.listingCode) || text(req.body.masterItemCode));
-
     const enquiry = await Enquiry.create({
       ...req.body,
       ...provider,
-
       enquiryCode: await nextEnquiryCode(),
-
       buyerName,
       buyerPhone,
       buyerEmail: text(req.body.buyerEmail),
-
       adminPhone,
-
-      contactRoute: directMarketplaceSupplier ? "provider" : "admin",
-
-      adminApprovalStatus: directMarketplaceSupplier
-        ? "assigned"
-        : "pending_admin",
-
-      contactReleased: directMarketplaceSupplier,
-
-      status: directMarketplaceSupplier ? "Pending" : "Pending Admin",
-
-      assignedProviderUserCode: directMarketplaceSupplier
-        ? provider.providerUserCode
-        : "",
-
-      assignedProviderName: directMarketplaceSupplier
-        ? provider.providerName || ""
-        : "",
-
-      assignedProviderPhone: directMarketplaceSupplier
-        ? provider.providerPhone || ""
-        : "",
+      contactRoute: "admin",
+      adminApprovalStatus: "pending_admin",
+      contactReleased: false,
+      status: "Pending Admin",
+      assignedProviderUserCode: "",
+      assignedProviderName: "",
+      assignedProviderPhone: "",
     });
 
     if (isRealEstate) {
@@ -605,6 +576,4 @@ router.put("/:id/quote", requireUserCode, async (req, res) => {
 });
 
 module.exports = router;
-
-
 

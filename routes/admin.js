@@ -435,12 +435,23 @@ router.get("/marketplace-listings", requireAdmin, async (req, res) => {
 
 router.put("/marketplace-listings/:id/approve", requireAdmin, async (req, res) => {
   try {
-    const listing = await MarketplaceListing.findOneAndUpdate(
-      listingIdentity(req.params.id),
-      { status: "approved", isActive: true, isBlocked: false, approvedBy: req.body.approvedBy || "admin", approvedAt: new Date(), rejectedReason: "" },
-      { new: true }
-    );
-    res.json({ success: Boolean(listing), listing });
+    const listing = await MarketplaceListing.findOne(listingIdentity(req.params.id));
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    const newApprovedRate = listing.proposedRate > 0 ? listing.proposedRate : (listing.rate > 0 ? listing.rate : listing.approvedRate);
+    listing.approvedRate = newApprovedRate;
+    listing.rate = newApprovedRate;
+    listing.proposedRate = 0;
+    listing.status = "approved";
+    listing.approvalStatus = "approved";
+    listing.isActive = true;
+    listing.isBlocked = false;
+    listing.approvedBy = req.body.approvedBy || "admin";
+    listing.approvedAt = new Date();
+    listing.rejectedReason = "";
+    await listing.save();
+
+    res.json({ success: true, listing });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -448,12 +459,23 @@ router.put("/marketplace-listings/:id/approve", requireAdmin, async (req, res) =
 
 router.put("/marketplace-listings/:id/reject", requireAdmin, async (req, res) => {
   try {
-    const listing = await MarketplaceListing.findOneAndUpdate(
-      listingIdentity(req.params.id),
-      { status: "rejected", rejectedReason: req.body.rejectedReason || "Rejected by admin", isActive: false },
-      { new: true }
-    );
-    res.json({ success: Boolean(listing), listing });
+    const listing = await MarketplaceListing.findOne(listingIdentity(req.params.id));
+    if (!listing) return res.status(404).json({ success: false, message: "Listing not found" });
+
+    listing.proposedRate = 0;
+    listing.rejectedReason = req.body.rejectedReason || req.body.reason || "Rejected by admin";
+    if (listing.approvedRate > 0) {
+      listing.status = "approved";
+      listing.approvalStatus = "approved";
+      listing.rate = listing.approvedRate;
+    } else {
+      listing.status = "rejected";
+      listing.approvalStatus = "rejected";
+      listing.isActive = false;
+    }
+    await listing.save();
+
+    res.json({ success: true, listing });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

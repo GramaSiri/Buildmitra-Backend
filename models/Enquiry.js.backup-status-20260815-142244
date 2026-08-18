@@ -82,7 +82,7 @@ const EnquirySchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["New", 
+      enum: [
         "Pending Admin",
         "Pending",
         "On Hold",
@@ -118,4 +118,3 @@ EnquirySchema.index({ assignedProviderUserCode: 1, contactReleased: 1, createdAt
 EnquirySchema.index({ enquiryCategory: 1, propertyCode: 1, providerUserCode: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Enquiry", EnquirySchema);
-

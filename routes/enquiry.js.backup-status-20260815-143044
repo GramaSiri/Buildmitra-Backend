@@ -185,7 +185,9 @@ router.post("/", async (req, res) => {
 
       contactReleased: directMarketplaceSupplier,
 
-      status: directMarketplaceSupplier ? "Pending" : "Pending Admin",
+      status: directMarketplaceSupplier
+        ? "New"
+        : "Pending Admin",
 
       assignedProviderUserCode: directMarketplaceSupplier
         ? provider.providerUserCode
@@ -605,6 +607,5 @@ router.put("/:id/quote", requireUserCode, async (req, res) => {
 });
 
 module.exports = router;
-
 
 

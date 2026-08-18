@@ -169,11 +169,11 @@ async function findUserProfile(body = {}) {
 function providerSnapshot(user, body = {}, itemType) {
   const providerUserCode = cleanText(user?.userCode || body.providerUserCode || body.userCode).toUpperCase();
   const providerRole = normalizeProviderRole(user?.businessRole || body.providerRole || body.role, itemType);
-  const providerName = cleanText(user?.companyName || user?.name || body.providerName || body.name);
-  const providerPhone = cleanText(user?.phone || user?.officePhone || body.providerPhone || body.phone);
-  const providerAddress = cleanText(user?.address || body.providerAddress || body.address);
-  const city = cleanText(user?.city || body.providerCity || body.city || body.location);
-  const pincode = cleanText(user?.pincode || body.providerPincode || body.pincode);
+  const providerName = cleanText(user?.companyName || user?.name || body.providerName || body.name || body.shopName || "BuildMitra Supplier");
+  const providerPhone = cleanText(user?.phone || user?.officePhone || body.providerPhone || body.phone || "");
+  const providerAddress = cleanText(user?.address || body.providerAddress || body.address || "");
+  const city = cleanText(user?.city || body.providerCity || body.city || body.location || "Bengaluru");
+  const pincode = cleanText(user?.pincode || body.providerPincode || body.pincode || "");
   return {
     providerUserCode,
     providerRole,
@@ -181,11 +181,11 @@ function providerSnapshot(user, body = {}, itemType) {
     providerPhone,
     providerAddress,
     providerCity: city,
-    providerArea: cleanText(body.providerArea || body.area || body.serviceArea),
+    providerArea: cleanText(body.providerArea || body.area || body.serviceArea || ""),
     providerPincode: pincode,
     location: city,
     pincode,
-    serviceArea: cleanText(body.serviceArea || body.area),
+    serviceArea: cleanText(body.serviceArea || body.area || ""),
   };
 }
 
@@ -199,18 +199,12 @@ async function upsertProviderListing(body = {}) {
 
   const masterItem = await MasterItem.findOne({ masterItemCode, status: "active" });
   if (!masterItem) {
-    const err = new Error("Active master item not found");
+    const err = new Error("Active master item not found in catalogue");
     err.status = 404;
     throw err;
   }
 
-  const rate = Number(body.rate || 0);
-  if (!rate || rate <= 0) {
-    const err = new Error("rate must be greater than zero");
-    err.status = 400;
-    throw err;
-  }
-
+  const inputRate = Number(body.proposedRate ?? body.rate ?? body.supplierRate ?? 0);
   const user = await findUserProfile(body);
   const provider = providerSnapshot(user, body, masterItem.itemType);
   if (!provider.providerUserCode) {
@@ -218,13 +212,18 @@ async function upsertProviderListing(body = {}) {
     err.status = 400;
     throw err;
   }
-  if (!provider.providerName) {
-    const err = new Error("Provider profile name is required");
-    err.status = 400;
-    throw err;
-  }
 
-  // Handle Target 2 Canonical Images & Legacy Image URLs
+  // Stock and Commercial Fields
+  const providerStock = Number(body.providerStock ?? body.stock ?? 0);
+  const availability = cleanText(body.availability || (providerStock > 0 ? "In Stock" : "In Stock"));
+  const minOrderQty = Number(body.minOrderQty ?? body.moq ?? 1);
+  const deliveryTime = cleanText(body.deliveryTime || "");
+  const deliveryArea = cleanText(body.deliveryArea || body.pincode || provider.pincode || "");
+  const gst = Number(body.gst ?? masterItem.gst ?? 0);
+  const transport = cleanText(body.transport || "");
+  const remarks = cleanText(body.remarks || "");
+
+  // Handle Images
   const rawImages = Array.isArray(body.images) ? body.images : [];
   let formattedImages = rawImages.map((img, idx) => {
     if (typeof img === "string") {
@@ -260,13 +259,70 @@ async function upsertProviderListing(body = {}) {
   const primaryObj = formattedImages.find((i) => i.isPrimary) || formattedImages[0];
   const finalImageUrl = primaryObj ? primaryObj.url : defaultImageFor(masterItem.category, masterItem.itemType);
 
-  const pending = await MarketplaceListing.findOne({
+  // Look for ANY existing record for (providerUserCode, masterItemCode)
+  const existing = await MarketplaceListing.findOne({
     masterItemCode,
     providerUserCode: provider.providerUserCode,
-    status: "pending",
-  }).sort({ createdAt: -1 });
+    isArchived: { $ne: true }
+  });
 
-  const base = {
+  if (existing) {
+    // Single Record Retained!
+    const currentApprovedRate = Number(existing.approvedRate || (existing.status === "approved" ? existing.rate : 0));
+    
+    // Check if input rate represents a price change request
+    const isRateChanged = inputRate > 0 && inputRate !== currentApprovedRate && inputRate !== existing.proposedRate;
+    
+    if (isRateChanged || (inputRate > 0 && existing.status === "rejected")) {
+      // RATE SAFETY:
+      // Preserve existing approvedRate & live rate intact!
+      // Proposed rate goes to proposedRate + status = pending.
+      existing.proposedRate = inputRate;
+      existing.status = "pending";
+      existing.approvalStatus = "pending";
+
+      if (currentApprovedRate > 0) {
+        existing.approvedRate = currentApprovedRate;
+        existing.rate = currentApprovedRate; // LIVE rate remains at approved rate (e.g. ₹390)!
+      } else {
+        existing.approvedRate = 0;
+        existing.rate = inputRate;
+      }
+    } else if (inputRate > 0 && existing.status === "pending") {
+      existing.proposedRate = inputRate;
+    }
+
+    // Availability & Commercial fields (can update immediately)
+    existing.providerStock = providerStock;
+    existing.availability = availability;
+    existing.minOrderQty = minOrderQty;
+    existing.deliveryTime = deliveryTime;
+    existing.deliveryArea = deliveryArea;
+    existing.gst = gst;
+    existing.transport = transport;
+    existing.remarks = remarks;
+
+    // Update images if new ones provided
+    if (formattedImages.length > 0) {
+      existing.images = formattedImages;
+      existing.imageUrl = finalImageUrl;
+    }
+
+    Object.assign(existing, provider);
+    existing.version = Number(existing.version || 1) + 1;
+    return existing.save();
+  }
+
+  // Create NEW single record for provider + masterItemCode
+  if (!inputRate || inputRate <= 0) {
+    const err = new Error("Rate must be greater than zero");
+    err.status = 400;
+    throw err;
+  }
+
+  const listingCode = await nextCode("LST");
+  return MarketplaceListing.create({
+    listingCode,
     masterItemCode,
     masterItem: masterItem._id,
     itemType: masterItem.itemType,
@@ -277,28 +333,35 @@ async function upsertProviderListing(body = {}) {
     specification: masterItem.specification,
     description: masterItem.specification,
     unit: masterItem.unit,
-    gst: masterItem.gst,
+    gst,
     hsnCode: masterItem.hsnCode,
     imageUrl: finalImageUrl,
     images: formattedImages.length > 0 ? formattedImages : [{ url: finalImageUrl, isPrimary: true, alt: masterItem.itemName }],
-    rate,
+    
+    // Rate Safety fields
+    rate: inputRate,
+    proposedRate: inputRate,
+    approvedRate: 0,
+    status: "pending",
+    approvalStatus: "pending",
+
+    // Stock & Commercial fields
+    providerStock,
+    availability,
+    minOrderQty,
+    deliveryTime,
+    deliveryArea,
+    transport,
+    remarks,
+
     ...provider,
     documentUrl: cleanText(body.documentUrl),
-    status: "pending",
     isActive: true,
     isBlocked: false,
+    isArchived: false,
     submittedBy: provider.providerUserCode,
-    rejectedReason: "",
-  };
-
-  if (pending) {
-    Object.assign(pending, base);
-    pending.version = Number(pending.version || 1) + 1;
-    return pending.save();
-  }
-
-  const listingCode = await nextCode("LST");
-  return MarketplaceListing.create({ ...base, listingCode });
+    rejectedReason: ""
+  });
 }
 
 function buildListingFilter(query = {}, publicOnly = false) {
