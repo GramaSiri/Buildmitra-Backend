@@ -127,6 +127,8 @@ async function resolveProvider(reqBody, isRealEstate) {
     itemName: text(reqBody.itemName),
     providerUserCode,
     providerRole: text(reqBody.providerRole),
+    batchCode: text(reqBody.batchCode),
+    quickReplyCode: text(reqBody.quickReplyCode),
     providerName: text(reqBody.providerName),
     providerPhone: text(reqBody.providerPhone),
     location: text(reqBody.location),
@@ -1038,6 +1040,7 @@ BuildMitra`;
 });
 
 module.exports = router;
+
 
 
 
