@@ -1,4 +1,5 @@
 const express = require("express");
+const Quote = require("../models/Quote");
 const router = express.Router();
 
 const Enquiry = require("../models/Enquiry");
@@ -604,7 +605,442 @@ router.put("/:id/quote", requireUserCode, async (req, res) => {
   }
 });
 
+
+/* =========================================================
+   BUILDMITRA BATCH QUOTE 19-08-2026
+   One supplier quote for all enquiries in same batchCode.
+   ========================================================= */
+
+router.put("/batch/:batchCode/quote", requireUserCode, async (req, res) => {
+  try {
+    const batchCode = text(req.params.batchCode);
+
+    if (!batchCode) {
+      return res.status(400).json({
+        success: false,
+        message: "batchCode is required"
+      });
+    }
+
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+
+    if (!items.length) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one quote item is required"
+      });
+    }
+
+    const enquiries = await Enquiry.find({
+      batchCode,
+      assignedProviderUserCode: req.userCode,
+      contactReleased: true,
+      adminApprovalStatus: { $in: ["approved", "assigned"] }
+    });
+
+    if (!enquiries.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Supplier batch enquiry not found"
+      });
+    }
+
+    const updates = [];
+
+    for (const enquiry of enquiries) {
+      const quoteItem = items.find(
+        (x) =>
+          String(x.enquiryId || "") === String(enquiry._id) ||
+          String(x.enquiryCode || "") === String(enquiry.enquiryCode)
+      );
+
+      if (!quoteItem) continue;
+
+      const quantity =
+        Number(quoteItem.quantity ?? enquiry.quantity ?? 0) || 0;
+
+      const rate =
+        Number(quoteItem.rate ?? quoteItem.quotedRate ?? 0) || 0;
+
+      const lineAmount =
+        Number(quoteItem.amount ?? quantity * rate) || 0;
+
+      enquiry.status = "Quoted";
+      enquiry.quotedAmount = lineAmount;
+      enquiry.quoteMessage = text(
+        quoteItem.remarks ||
+        req.body.remarks ||
+        "Supplier consolidated quotation"
+      );
+      enquiry.quoteValidityDate = text(
+        req.body.quoteValidityDate ||
+        req.body.deliveryTime
+      );
+      enquiry.paymentTerms = text(req.body.paymentTerms);
+      enquiry.gstIncluded = Boolean(req.body.gstIncluded);
+      enquiry.transportCharges =
+        Number(req.body.transportCharges) || 0;
+      enquiry.quotedDate =
+        new Date().toISOString().split("T")[0];
+
+      if (quoteItem.quantity !== undefined) {
+        enquiry.quantity = quoteItem.quantity;
+      }
+
+      if (quoteItem.unit !== undefined) {
+        enquiry.unit = text(quoteItem.unit);
+      }
+
+      if (quoteItem.availability !== undefined) {
+        enquiry.availability = text(quoteItem.availability);
+      }
+
+      await enquiry.save();
+
+      updates.push({
+        enquiryId: enquiry._id,
+        enquiryCode: enquiry.enquiryCode,
+        itemName: enquiry.itemName,
+        quantity,
+        unit: enquiry.unit,
+        rate,
+        amount: lineAmount,
+        status: enquiry.status
+      });
+    }
+
+    if (!updates.length) {
+      return res.status(400).json({
+        success: false,
+        message: "No matching batch items were updated"
+      });
+    }
+
+    const subtotal = updates.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    );
+
+    const gstAmount =
+      Number(req.body.gstAmount) || 0;
+
+    const transportCharges =
+      Number(req.body.transportCharges) || 0;
+
+    const loadingCharges =
+      Number(req.body.loadingCharges) || 0;
+
+    const unloadingCharges =
+      Number(req.body.unloadingCharges) || 0;
+
+    const discount =
+      Number(req.body.discount) || 0;
+
+    const grandTotal =
+      subtotal +
+      gstAmount +
+      transportCharges +
+      loadingCharges +
+      unloadingCharges -
+      discount;
+
+    return res.json({
+      success: true,
+      message: "Consolidated supplier quote submitted",
+      batchCode,
+      count: updates.length,
+      items: updates,
+      subtotal,
+      gstAmount,
+      transportCharges,
+      loadingCharges,
+      unloadingCharges,
+      discount,
+      grandTotal
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+
+/* =========================================================
+   BUILDMITRA_ONE_CLICK_QUOTE_20260819
+   Supplier taps WhatsApp Reply Quote:
+   saved rates -> official quote -> DB -> buyer WhatsApp
+   ========================================================= */
+
+router.post("/batch/:batchCode/quick-reply", async (req, res) => {
+  try {
+    const batchCode = text(req.params.batchCode);
+    const providerUserCode = text(req.body.providerUserCode);
+    const quickReplyCode = text(req.body.quickReplyCode);
+
+    if (!batchCode || !providerUserCode || !quickReplyCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid quick reply link"
+      });
+    }
+
+    const enquiries = await Enquiry.find({
+      batchCode,
+      providerUserCode,
+      quickReplyCode
+    }).sort({ createdAt: 1 });
+
+    if (!enquiries.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Quick quote enquiry not found or link expired"
+      });
+    }
+
+    const supplier = await User.findOne({
+      userCode: providerUserCode
+    }).select("-password").lean();
+
+    const supplierName =
+      supplier?.companyName ||
+      supplier?.businessName ||
+      supplier?.name ||
+      enquiries[0]?.providerName ||
+      "BuildMitra Supplier";
+
+    const supplierPhone =
+      supplier?.phone ||
+      supplier?.mobile ||
+      supplier?.officePhone ||
+      enquiries[0]?.providerPhone ||
+      "";
+
+    const supplierAddress =
+      supplier?.businessAddress ||
+      supplier?.officeAddress ||
+      supplier?.address ||
+      supplier?.location ||
+      "";
+
+    const STANDARD_TERMS = [
+      "Rates are subject to stock availability.",
+      "Material quantity and quality to be verified at delivery.",
+      "GST, transport, loading and unloading are as specifically stated in the quotation.",
+      "Payment terms: as mutually agreed / before dispatch unless otherwise agreed.",
+      "Quotation validity: 15 days from quotation date."
+    ];
+
+    const quoteItems = [];
+
+    for (const enquiry of enquiries) {
+      let listing = null;
+
+      if (enquiry.masterItemCode) {
+        listing = await MarketplaceListing.findOne({
+          providerUserCode,
+          masterItemCode: enquiry.masterItemCode,
+          status: "approved",
+          isActive: true,
+          isBlocked: false
+        }).lean();
+      }
+
+      if (!listing && enquiry.itemName) {
+        listing = await MarketplaceListing.findOne({
+          providerUserCode,
+          itemName: enquiry.itemName,
+          status: "approved",
+          isActive: true,
+          isBlocked: false
+        }).lean();
+      }
+
+      const quantity = Number(enquiry.quantity || 0);
+      const rate = Math.round(Number(listing?.rate || 0));
+      const amount = Math.round(quantity * rate);
+      const unit = String(enquiry.unit || listing?.unit || "").toUpperCase();
+
+      quoteItems.push({
+        enquiryId: enquiry._id,
+        enquiryCode: enquiry.enquiryCode,
+        itemName: enquiry.itemName,
+        quantity,
+        unit,
+        rate,
+        amount
+      });
+    }
+
+    if (quoteItems.some(item => item.rate <= 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "One or more supplier rates are missing. Please update marketplace rates first."
+      });
+    }
+
+    const subtotal = quoteItems.reduce(
+      (sum, item) => sum + item.amount,
+      0
+    );
+
+    const gstAmount = 0;
+    const transportCharges = 0;
+    const loadingCharges = 0;
+    const unloadingCharges = 0;
+    const discount = 0;
+
+    const grandTotal =
+      subtotal +
+      gstAmount +
+      transportCharges +
+      loadingCharges +
+      unloadingCharges -
+      discount;
+
+    const quoteDate = new Date()
+      .toISOString()
+      .split("T")[0];
+
+    const quoteRef =
+      `QTE-${Date.now().toString().slice(-8)}`;
+
+    const quoteLines = quoteItems
+      .map((item, index) => {
+        const shortName = String(item.itemName || "")
+          .trim()
+          .split(/\s+/)
+          .slice(0, 9)
+          .join(" ");
+
+        return `${index + 1}. ${shortName} - ${item.quantity} ${item.unit} - ₹${item.rate.toLocaleString("en-IN")}/- - Amt ₹${item.amount.toLocaleString("en-IN")}`;
+      })
+      .join("\n");
+
+    const buyer = enquiries[0];
+
+    const whatsappMessage =
+`🏗️ BUILDMITRA OFFICIAL QUOTATION
+
+Quote Ref: ${quoteRef}
+Enquiry Ref: ${batchCode}
+Date: ${quoteDate}
+
+Supplier: ${supplierName}
+Address: ${supplierAddress || "-"}
+Phone: ${supplierPhone || "-"}
+
+Buyer: ${buyer.buyerName}
+Delivery: ${buyer.location || "-"} - ${buyer.pincode || ""}
+
+${quoteLines}
+
+Total Amount: ₹${grandTotal.toLocaleString("en-IN")}
+
+Standard Terms:
+1. ${STANDARD_TERMS[0]}
+2. ${STANDARD_TERMS[1]}
+3. ${STANDARD_TERMS[2]}
+4. ${STANDARD_TERMS[3]}
+5. ${STANDARD_TERMS[4]}
+
+BuildMitra`;
+
+    // Save one quote record for every linked enquiry item,
+    // all sharing the same batchCode / quote reference.
+    for (const item of quoteItems) {
+      await Quote.create({
+        quoteCode:
+          `${quoteRef}-${String(item.enquiryCode || "").replace(/\W/g, "").slice(-6)}`,
+
+        enquiryCode: item.enquiryCode,
+        batchCode,
+
+        buyerUserCode: buyer.buyerUserCode,
+        buyerName: buyer.buyerName,
+        buyerPhone: buyer.buyerPhone,
+
+        providerUserCode,
+        providerName: supplierName,
+        providerPhone: supplierPhone,
+        providerRole:
+          supplier?.businessRole ||
+          buyer.providerRole ||
+          "supplier",
+
+        itemName: item.itemName,
+        quantity: item.quantity,
+        unit: item.unit,
+        rate: item.rate,
+        subtotal: item.amount,
+
+        gstAmount: 0,
+        transportCharges: 0,
+        loadingCharges: 0,
+        unloadingCharges: 0,
+        discount: 0,
+
+        totalAmount: item.amount,
+        grandTotal: item.amount,
+
+        deliveryTime: "As per stock availability",
+        terms: STANDARD_TERMS.join(" | "),
+        remarks: `Automatic official quotation for batch ${batchCode}`,
+        status: "sent",
+        whatsappMessage
+      });
+    }
+
+    // Update enquiry collection as quoted as well.
+    for (const item of quoteItems) {
+      await Enquiry.updateOne(
+        { _id: item.enquiryId },
+        {
+          $set: {
+            status: "Quoted",
+            quoteStatus: "quoted",
+            quotedAmount: item.amount,
+            quoteMessage: whatsappMessage,
+            quotedDate: quoteDate,
+            paymentTerms:
+              "As mutually agreed / before dispatch",
+            gstIncluded: false,
+            transportCharges: 0
+          }
+        }
+      );
+    }
+
+    return res.json({
+      success: true,
+      quoteRef,
+      batchCode,
+      buyerPhone: buyer.buyerPhone,
+      buyerName: buyer.buyerName,
+      supplierName,
+      supplierAddress,
+      items: quoteItems,
+      subtotal,
+      grandTotal,
+      whatsappMessage
+    });
+
+  } catch (error) {
+    console.error("One-click quote error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
+
+
+
 
 
 

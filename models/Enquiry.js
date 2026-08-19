@@ -4,6 +4,7 @@ const EnquirySchema = new mongoose.Schema(
   {
     enquiryCode: { type: String, unique: true, index: true },
     batchCode: { type: String, default: "", trim: true, index: true },
+    quickReplyCode: { type: String, default: "", trim: true, index: true },
     cartItems: { type: Array, default: [] },
 
     buyerUserCode: { type: String, default: "", trim: true, index: true },
@@ -118,4 +119,5 @@ EnquirySchema.index({ assignedProviderUserCode: 1, contactReleased: 1, createdAt
 EnquirySchema.index({ enquiryCategory: 1, propertyCode: 1, providerUserCode: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Enquiry", EnquirySchema);
+
 
