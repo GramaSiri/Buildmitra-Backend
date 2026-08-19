@@ -209,7 +209,7 @@ app.get("/api/marketplace/images/:id", async (req, res) => {
 app.get("/api/bm-render-verify", (req, res) => {
   res.status(200).json({
     success: true,
-    marker: "BM-LIVE-VERIFY-20260815-183359",
+    marker: "BM-LIVE-VERIFY-20260819-172500",
     entrypoint: "server.js",
     marketplaceImageRoute: true
   });
