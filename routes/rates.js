@@ -123,7 +123,26 @@ const TARGET_ITEMS = [
   { itemCode: "MAT-FEV-ADH", itemName: "Fevicol D3 Synthetic Resin Adhesive", category: "Materials", subCategory: "Consumables", unit: "KG", defaultRate: 60 },
   { itemCode: "MAT-NLS-FST", itemName: "Nails & Fasteners", category: "Materials", subCategory: "Consumables", unit: "KG", defaultRate: 30 },
   { itemCode: "MAT-SCR-WLL", itemName: "Consumable Screws & Plugs", category: "Materials", subCategory: "Consumables", unit: "BOX", defaultRate: 40 },
-  { itemCode: "MAT-MIR-01", itemName: "Mirrors 5mm Float Glass", category: "Materials", subCategory: "Glass", unit: "SQFT", defaultRate: 50 }
+  { itemCode: "MAT-MIR-01", itemName: "Mirrors 5mm Float Glass", category: "Materials", subCategory: "Glass", unit: "SQFT", defaultRate: 50 },
+  { itemCode: "MAT-PEB-PRM", itemName: "Primary Structural Steel (Built-up Columns & Rafters)", category: "Materials", subCategory: "PEB Steel", unit: "KG", defaultRate: 88 },
+  { itemCode: "MAT-PEB-SEC", itemName: "Secondary Steel Members (Z/C Purlins & Girts)", category: "Materials", subCategory: "PEB Steel", unit: "KG", defaultRate: 92 },
+  { itemCode: "MAT-PEB-BRC", itemName: "Bracings, Rods, Sag Rods & Base Plates", category: "Materials", subCategory: "PEB Steel", unit: "KG", defaultRate: 85 },
+  { itemCode: "MAT-SHT-ROOF", itemName: "Roof Profile Sheeting (Galvalume Color Coated)", category: "Materials", subCategory: "PEB Sheeting", unit: "SQFT", defaultRate: 52 },
+  { itemCode: "MAT-SHT-SKY", itemName: "Polycarbonate Skylight Sheeting (2.0mm)", category: "Materials", subCategory: "PEB Sheeting", unit: "SQFT", defaultRate: 140 },
+  { itemCode: "MAT-SHT-WALL", itemName: "Wall Cladding Profile Sheeting", category: "Materials", subCategory: "PEB Sheeting", unit: "SQFT", defaultRate: 48 },
+  { itemCode: "MAT-INS-ROOF", itemName: "Roof Thermal Insulation (Glasswool / Foil)", category: "Materials", subCategory: "PEB Insulation", unit: "SQFT", defaultRate: 22 },
+  { itemCode: "MAT-ACC-FST", itemName: "Self Tapping Fasteners & EPDM Washers", category: "Materials", subCategory: "PEB Accessories", unit: "NOS", defaultRate: 1.50 },
+  { itemCode: "MAT-ACC-FLS", itemName: "Flashings (Ridge Cap, Gable & Drip Trims)", category: "Materials", subCategory: "PEB Accessories", unit: "RFT", defaultRate: 65 },
+  { itemCode: "MAT-ACC-GUT", itemName: "Eaves Gutters & Rainwater Downpipes", category: "Materials", subCategory: "PEB Accessories", unit: "RFT", defaultRate: 120 },
+  { itemCode: "MAT-ACC-VNT", itemName: "Turbo Ventilators (24-inch Stainless Steel)", category: "Materials", subCategory: "PEB Accessories", unit: "NOS", defaultRate: 3800 },
+  { itemCode: "MAT-ACC-DOR", itemName: "Personnel Doors & Heavy Duty Rolling Shutters", category: "Materials", subCategory: "PEB Accessories", unit: "NOS", defaultRate: 15000 },
+  { itemCode: "MAT-ACC-WIN", itemName: "Aluminium / UPVC Strip Windows", category: "Materials", subCategory: "PEB Accessories", unit: "NOS", defaultRate: 4200 },
+  { itemCode: "MAT-PNT-SYS", itemName: "Synthetic Enamel / Epoxy Protective Paint System", category: "Materials", subCategory: "PEB Coatings", unit: "SQM", defaultRate: 180 },
+  { itemCode: "CIV-FND-CON", itemName: "M25 Grade Concrete for Isolated Footings & Plinth Beam", category: "Materials", subCategory: "PEB Civil", unit: "CUM", defaultRate: 5200 },
+  { itemCode: "CIV-FND-STL", itemName: "Fe500D TMT Reinforcement Steel for Footings", category: "Materials", subCategory: "PEB Civil", unit: "KG", defaultRate: 68 },
+  { itemCode: "CIV-FND-ANC", itemName: "High Tensile Grade 8.8 Anchor Bolts Set", category: "Materials", subCategory: "PEB Civil", unit: "KG", defaultRate: 145 },
+  { itemCode: "LAB-PEB-ERC", itemName: "PEB Structural Steel Erection & Crane Labour", category: "Labour", subCategory: "PEB Erection", unit: "KG", defaultRate: 18 },
+  { itemCode: "LAB-PEB-TRN", itemName: "Logistics, Freight & Heavy Machinery Transport", category: "Services", subCategory: "PEB Transport", unit: "TON", defaultRate: 2200 }
 ];
 
 async function ensureDefaultMasterRates(city = "Bengaluru") {

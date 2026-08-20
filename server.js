@@ -1,4 +1,5 @@
-const labourNetRoutes = require('./routes/labourNet');
+const labourNetRoutes = require('./routes/labourNet');
+const drgV2Router = require("./routes/drg-v2");
 const express = require('express');
 const securityShield = require('./middleware/securityShield');
 const mongoose = require('mongoose');
@@ -15,6 +16,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
+app.use("/api/drg-v2", drgV2Router);
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Serve static uploads
@@ -219,6 +221,7 @@ app.listen(PORT, () => {
   console.log(`🚀 BuildMitra Backend running on port ${PORT}`);
   startExpertTalkSyncJob();
 });
+
 
 
 
