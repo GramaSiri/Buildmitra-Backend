@@ -11,3 +11,11 @@ uploads/*
 # Local BuildMitra safety backups
 _archive/
 
+# BuildMitra generated/local dependencies
+drg_solver/.venv/
+**/.venv/
+**/venv/
+**/node_modules/
+__pycache__/
+**/__pycache__/
+*.pyc

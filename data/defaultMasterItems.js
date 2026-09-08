@@ -10,3 +10,4 @@ module.exports = [
   { masterItemCode: "MAC-000001", itemType: "machine", category: "Machinery", itemName: "JCB 3DX", brand: "JCB", specification: "Backhoe loader with operator", unit: "Hour", gst: 18, hsnCode: "9973", referenceRate: 1800 },
   { masterItemCode: "VEN-000001", itemType: "vendor", category: "Hardware", itemName: "Door Hardware Set", brand: "Generic", specification: "Hinges, tower bolt and handles", unit: "Set", gst: 18, hsnCode: "8302", referenceRate: 950 },
 ];
+

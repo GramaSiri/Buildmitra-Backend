@@ -124,3 +124,4 @@ EnquirySchema.index({
 });
 
 module.exports = mongoose.model("Enquiry", EnquirySchema);
+

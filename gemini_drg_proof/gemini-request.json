@@ -1,0 +1,210 @@
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "You are the architectural planning engine for BuildMitra.\n\nDesign a professional Indian residential building from USER REQUIREMENTS.\nDo NOT generate a picture.\nReturn exact structured architectural geometry only.\n\nPROJECT:\nPlot width: 30 ft\nPlot length: 40 ft\nRoad/facing: SOUTH\nStoreys: Ground + First + Second (G+2)\nParking: HALF PARKING, exactly one practical car bay\nUse: Owner residential\nBedrooms total: 3\nMaster bedrooms: 1\nToilets total: 3\nKitchen: 1\nLiving: 1\nDining: 1\nPooja: required\nUtility: required\nStaircase: required\nLift: not required\nVastu: preferred\nExternal wall: 9 inches\nInternal wall: 4.5 inches\n\nMANDATORY DESIGN PRINCIPLES:\n\n1. Generate THREE coordinated floors:\n   Ground Floor, First Floor, Second Floor.\n\n2. SOUTH side is the road/front.\n\n3. Half Parking means only one car bay.\n   It must NOT consume the entire Ground Floor.\n\n4. Ground Floor requires a real SOUTH-side pedestrian/main entrance.\n\n5. Main entrance must connect:\n   entrance -> foyer/living -> dining -> remaining circulation.\n\n6. The residential built area must behave as ONE CONNECTED BUILDING.\n   Never create floating/disconnected room rectangles.\n\n7. Empty space inside the intended built-up footprint is forbidden unless\n   explicitly classified as corridor, duct, courtyard, stair void,\n   balcony, terrace or open-to-sky.\n\n8. Every room must be reachable from another usable circulation space.\n\n9. Staircase must occupy the SAME x/y footprint on Ground, First and Second floors.\n\n10. Prefer vertically aligned toilets/wet plumbing.\n\n11. Bedrooms need practical privacy.\n\n12. Kitchen should connect logically to dining and utility.\n\n13. Toilets must not open directly into kitchen or pooja.\n\n14. Habitable rooms require practical exterior windows.\n\n15. Door positions must be located on ACTUAL shared walls.\n\n16. Windows must be located on ACTUAL external room walls.\n\n17. No room overlaps.\n\n18. No stair/room overlap.\n\n19. No door swing should collide with another wall/door where avoidable.\n\n20. VASTU PREFERENCE:\n    - South-facing suitable entrance\n    - Master preferred southwest\n    - Kitchen preferred southeast\n    - Pooja preferred northeast\n    These are preferences, not permission to create unusable architecture.\n\n21. Use realistic Indian residential dimensions.\n    Do not create rooms such as 18x5 toilets or unrealistic long corridors.\n\n22. Ground/First/Second floors must coordinate as ONE building.\n\n23. Second floor may contain terrace if full residential construction\n    is unnecessary, but stair access must remain real.\n\nCOORDINATE SYSTEM:\n- Plot origin x=0,y=0 is SOUTH-WEST corner.\n- x increases WEST -> EAST.\n- y increases SOUTH -> NORTH.\n- All coordinates and dimensions are FEET.\n- All geometry must stay inside the 30x40 plot.\n\nOUTPUT GOAL:\nThe final data must be capable of being rendered like a professional\narchitectural floor plan: continuous walls, room labels, doors with swings,\nwindows, stairs, dimensions, parking, road and orientation.\n\nThink architecturally before assigning coordinates.\nDo not use simple shelf packing.\nDo not copy a fixed template."
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "maxOutputTokens": 16000,
+    "responseSchema": {
+      "type": "object",
+      "required": [
+        "project",
+        "floors",
+        "designNotes"
+      ],
+      "properties": {
+        "project": {
+          "type": "object",
+          "required": [
+            "plotWidth",
+            "plotLength",
+            "facing",
+            "storeys"
+          ],
+          "properties": {
+            "storeys": {
+              "type": "integer"
+            },
+            "facing": {
+              "type": "string"
+            },
+            "plotWidth": {
+              "type": "number"
+            },
+            "plotLength": {
+              "type": "number"
+            }
+          }
+        },
+        "floors": {
+          "items": {
+            "type": "object",
+            "required": [
+              "level",
+              "name",
+              "rooms",
+              "doors",
+              "windows",
+              "circulation"
+            ],
+            "properties": {
+              "windows": {
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "roomId",
+                    "wall",
+                    "x",
+                    "y",
+                    "width"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "roomId": {
+                      "type": "string"
+                    },
+                    "wall": {
+                      "type": "string"
+                    },
+                    "width": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "type": "array"
+              },
+              "level": {
+                "type": "integer"
+              },
+              "rooms": {
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "name",
+                    "type",
+                    "x",
+                    "y",
+                    "width",
+                    "depth"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "depth": {
+                      "type": "number"
+                    },
+                    "width": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "type": "array"
+              },
+              "name": {
+                "type": "string"
+              },
+              "circulation": {
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "from",
+                    "to"
+                  ],
+                  "properties": {
+                    "to": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "type": "array"
+              },
+              "doors": {
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "from",
+                    "to",
+                    "wall",
+                    "x",
+                    "y",
+                    "width",
+                    "swing"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "swing": {
+                      "type": "string"
+                    },
+                    "width": {
+                      "type": "number"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "wall": {
+                      "type": "string"
+                    },
+                    "x": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "type": "array"
+              }
+            }
+          },
+          "type": "array"
+        },
+        "designNotes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      }
+    },
+    "responseMimeType": "application/json",
+    "temperature": 0.35
+  }
+}

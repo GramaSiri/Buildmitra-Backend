@@ -1,0 +1,73 @@
+const PropertyIntelligence = require('../models/PropertyIntelligence');
+const ExpertTalkArticle = require('../models/ExpertTalkArticle');
+
+const BENGALURU_TERMS = [
+  'bengaluru', 'bangalore', 'bda', 'greater bengaluru', 'gba', 'bbmp', 'karnataka rera',
+  'kempegowda', 'whitefield', 'sarjapur', 'electronic city', 'north bengaluru',
+  'devanahalli', 'kanakapura', 'bannerghatta', 'hebbal', 'yelahanka', 'hoskote'
+];
+
+function classify(text) {
+  const value = String(text || '').toLowerCase();
+  if (/\bbda\b|bangalore development authority/.test(value)) return 'BDA';
+  if (/\bgba\b|greater bengaluru authority|bbmp/.test(value)) return 'GBA';
+  if (/rera|court|policy|rule|tax|approval|legal|acquisition/.test(value)) return 'Policy & Legal';
+  if (/launch|new project|new phase|rera registered/.test(value)) return 'New Launch';
+  if (/price|rate|appreciation|capital value/.test(value)) return 'Price Trend';
+  if (/inventory|supply|absorption|unsold|sales velocity/.test(value)) return 'Inventory & Supply';
+  if (/rent|rental|demand|yield|tenant/.test(value)) return 'Demand & Rental';
+  if (/metro|road|airport|rail|tunnel|corridor|infrastructure/.test(value)) return 'Infrastructure';
+  if (/forecast|outlook|projection/.test(value)) return 'Forecast';
+  return 'Developer Activity';
+}
+
+function isRelevant(article) {
+  const text = `${article.title || ''} ${article.summary || ''} ${(article.tags || []).join(' ')}`.toLowerCase();
+  const isBengaluru = BENGALURU_TERMS.some(term => text.includes(term));
+  const isProperty = /real estate|realty|housing|property|developer|residential|commercial|villa|plot|apartment|infrastructure|rera|authority/.test(text);
+  return isBengaluru && isProperty;
+}
+
+async function runPropertyIntelligenceSync(triggerType = 'scheduled') {
+  const since = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+  const candidates = await ExpertTalkArticle.find({
+    isActive: true,
+    $or: [{ publishDate: { $gte: since } }, { createdAt: { $gte: since } }]
+  }).sort({ publishDate: -1 }).limit(250).lean();
+
+  let discovered = 0;
+  let draftsCreated = 0;
+  let duplicatesSkipped = 0;
+
+  for (const article of candidates) {
+    if (!isRelevant(article)) continue;
+    discovered += 1;
+    const canonicalUrl = String(article.canonicalUrl || article.articleUrl || '').split('?')[0];
+    if (!canonicalUrl) continue;
+    const exists = await PropertyIntelligence.exists({ canonicalUrl });
+    if (exists) {
+      duplicatesSkipped += 1;
+      continue;
+    }
+
+    await PropertyIntelligence.create({
+      headline: article.title,
+      summary: article.summary || article.title,
+      category: classify(`${article.title} ${article.summary}`),
+      authority: /\bbda\b/i.test(`${article.title} ${article.summary}`) ? 'BDA' : (/\bgba\b|greater bengaluru/i.test(`${article.title} ${article.summary}`) ? 'GBA' : ''),
+      sourceName: article.publication || 'Approved Source',
+      sourceUrl: article.articleUrl,
+      canonicalUrl,
+      sourcePublishedAt: article.publishDate || new Date(),
+      tags: [...new Set([...(article.tags || []), 'Bengaluru Real Estate'])],
+      status: 'draft',
+      collectedBy: 'automatic',
+      reviewRemarks: `Collected by ${triggerType} sync. Admin must verify the source and complete Why it matters and Watch next before publishing.`
+    });
+    draftsCreated += 1;
+  }
+
+  return { success: true, candidatesChecked: candidates.length, discovered, draftsCreated, duplicatesSkipped };
+}
+
+module.exports = { runPropertyIntelligenceSync };

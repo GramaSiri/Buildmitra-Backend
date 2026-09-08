@@ -1,0 +1,45 @@
+BUILDMITRA GEMINI ARCHITECTURAL PROOF
+Model: gemini-3.6-flash
+Plot: 30 x 40 | South | G+2 | Half Parking
+
+========================================
+Ground Floor
+========================================
+Car Parking | parking | X=0 Y=0 | 11x14
+Entrance Foyer | foyer | X=11 Y=0 | 9x5
+Kitchen | kitchen | X=20 Y=0 | 10x9
+Living Room | living | X=11 Y=5 | 9x9
+Utility | utility | X=20 Y=9 | 10x5
+Staircase | staircase | X=0 Y=14 | 11x12
+Dining Area | dining | X=11 Y=14 | 9x12
+Pooja Room | pooja | X=20 Y=14 | 10x6
+Ground Lobby | corridor | X=20 Y=20 | 10x6
+Common Toilet 1 | toilet | X=0 Y=26 | 11x6
+Ventilation Duct | duct | X=0 Y=32 | 11x8
+Bedroom 1 | bedroom | X=11 Y=26 | 19x14
+
+========================================
+First Floor
+========================================
+Bedroom 3 | bedroom | X=0 Y=0 | 11x14
+Family Lounge | living | X=11 Y=0 | 9x14
+Front Balcony | balcony | X=20 Y=0 | 10x6
+Study Room | study | X=20 Y=6 | 10x8
+Staircase | staircase | X=0 Y=14 | 11x12
+Upper Lobby | corridor | X=11 Y=14 | 9x12
+Toilet 3 | toilet | X=20 Y=14 | 10x6
+Passage | corridor | X=20 Y=20 | 10x6
+Master Toilet (Toilet 2) | toilet | X=0 Y=26 | 11x6
+Ventilation Duct | duct | X=0 Y=32 | 11x8
+Master Bedroom | bedroom | X=11 Y=26 | 19x14
+
+========================================
+Second Floor
+========================================
+Open Front Terrace | terrace | X=0 Y=0 | 30x14
+Staircase Tower | staircase | X=0 Y=14 | 11x12
+Terrace Landing | corridor | X=11 Y=14 | 9x12
+Side Terrace | terrace | X=20 Y=14 | 10x12
+Terrace Utility Store | utility | X=0 Y=26 | 11x6
+Ventilation Duct | duct | X=0 Y=32 | 11x8
+Multipurpose Hall | living | X=11 Y=26 | 19x14

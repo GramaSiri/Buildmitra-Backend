@@ -1,0 +1,42 @@
+{
+  "plotWidthFt": 30,
+  "plotLengthFt": 40,
+
+  "facing": "South",
+
+  "setbacks": {
+    "front": 3,
+    "rear": 2,
+    "left": 2,
+    "right": 2
+  },
+
+  "floors": 3,
+
+  "buildingUse": "Own Use",
+
+  "parking": "Half Parking",
+
+  "vastuRequired": true,
+
+  "bedrooms": 3,
+  "masterBedrooms": 1,
+
+  "kitchens": 1,
+
+  "toilets": 3,
+  "attachedToilets": 2,
+  "commonToilets": 1,
+
+  "livingRooms": 1,
+  "diningRooms": 1,
+
+  "poojaRoom": true,
+  "utility": true,
+
+  "staircaseRequired": true,
+  "liftRequired": false,
+
+  "externalWallThicknessInches": 9,
+  "internalWallThicknessInches": 4.5
+}

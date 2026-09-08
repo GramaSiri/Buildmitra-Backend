@@ -1,0 +1,57 @@
+{
+  "garageEnabled": true,
+  "totalArea": "1800-2400 ft²",
+  "layoutConcept": "Traditional",
+  "prompt": "Indian urban residential house on a 30 ft x 40 ft plot.\n\nIMPORTANT SITE RULES:\n- SOUTH-FACING road and primary pedestrian entrance.\n- G+2 / three-storey house.\n- Half-parking intent: provide only ONE front car parking bay, not full-floor parking.\n- Keep substantial residential use on the ground floor.\n- Main door must connect directly into a foyer or living circulation.\n- Ground floor must not be a collection of disconnected boxes.\n- Rooms must form one continuous architectural floor plate.\n- No meaningless internal voids between rooms.\n- Staircase must be practical and remain vertically aligned through all floors.\n- Do not overlap staircase, toilets, bedrooms or circulation.\n- Upper floors must connect directly to the same stair core.\n- Prefer vertically stacked toilets/wet areas.\n- Kitchen must connect logically to dining.\n- Bedrooms must have privacy and usable proportions.\n- Toilets must not open directly into the kitchen.\n- Provide exterior windows to habitable rooms.\n- Provide realistic doors and circulation.\n- Use compact Indian residential planning proportions.\n\nVASTU PREFERENCES:\n- Main entrance appropriate for SOUTH-facing plot.\n- Master bedroom preferred toward south-west.\n- Kitchen preferred toward south-east where practical.\n- Pooja / prayer space preferred toward north-east where practical.\n- Vastu preferences must not create disconnected rooms or unusable geometry.\n\nDRAWING REQUIREMENT:\nGenerate coordinated floor plans for Ground, First and Second floors.\nThe 2D plans should look like a professional architectural residential layout:\ncontinuous walls, connected rooms, door openings, stair flights, toilets,\nkitchen, living/dining spaces, bedroom labels and sensible circulation.\nAvoid isolated floating rectangles.",
+  "refImageUrl": "",
+  "bedrooms": "3",
+  "keyRooms": "Home Office",
+  "garageType": "Front Entry",
+  "basement": "None",
+  "bathroomLayouts": [
+    {
+      "layout": "With Wet & Dry Separation",
+      "name": "Bathroom 1"
+    },
+    {
+      "layout": "Without Separation",
+      "name": "Bathroom 2"
+    },
+    {
+      "layout": "Without Separation",
+      "name": "Bathroom 3"
+    }
+  ],
+  "stories": "3+",
+  "kitchenLayout": "Closed Kitchen",
+  "outdoorSpaces": [
+    "Balcony"
+  ],
+  "garageCapacity": "1",
+  "bathrooms": "3",
+  "bedroomAreaRanges": [
+    {
+      "minArea": "120",
+      "maxArea": "180",
+      "name": "Master Bedroom",
+      "unit": "ft²"
+    },
+    {
+      "minArea": "100",
+      "maxArea": "150",
+      "name": "Bedroom 2",
+      "unit": "ft²"
+    },
+    {
+      "minArea": "100",
+      "maxArea": "150",
+      "name": "Bedroom 3",
+      "unit": "ft²"
+    }
+  ],
+  "kitchenFeatureOptions": [],
+  "style": "Contemporary",
+  "roofType": "Flat roof",
+  "modelType": "Pro"
+}
+

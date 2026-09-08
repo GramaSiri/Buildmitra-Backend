@@ -1,0 +1,69 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='720' height='1000' viewBox='0 0 720 1000'>
+<rect width="100%" height="100%" fill="white"/>
+
+<style>
+text { font-family: Arial, sans-serif; fill:#111; }
+.room { fill:#fafafa; stroke:#111; stroke-width:3; }
+.parking { fill:#f5f5f5; stroke:#111; stroke-width:3; }
+.terrace { fill:#fff; stroke:#555; stroke-width:2; stroke-dasharray:7 5; }
+.window { stroke:#1677ff; stroke-width:6; }
+.door { stroke:#b91c1c; stroke-width:4; }
+</style>
+<text x='90' y='35' font-size='22' font-weight='700'>BUILDMITRA — First Floor</text>
+<text x='90' y='60' font-size='13'>30'-0&quot; × 40'-0&quot; | SOUTH FACING | GEMINI ARCHITECTURAL PROOF</text>
+<rect x='90' y='90' width='540' height='720' fill='none' stroke='#000' stroke-width='5'/>
+<rect class='room' x='90' y='558' width='198' height='252'/>
+<text x='189' y='677' text-anchor='middle' font-size='12' font-weight='700'>Bedroom 3</text>
+<text x='189' y='695' text-anchor='middle' font-size='10'>11' × 14'</text>
+<rect class='room' x='288' y='558' width='162' height='252'/>
+<text x='369' y='677' text-anchor='middle' font-size='12' font-weight='700'>Family Lounge</text>
+<text x='369' y='695' text-anchor='middle' font-size='10'>9' × 14'</text>
+<rect class='room' x='450' y='702' width='180' height='108'/>
+<text x='540' y='749' text-anchor='middle' font-size='12' font-weight='700'>Front Balcony</text>
+<text x='540' y='767' text-anchor='middle' font-size='10'>10' × 6'</text>
+<rect class='room' x='450' y='558' width='180' height='144'/>
+<text x='540' y='623' text-anchor='middle' font-size='12' font-weight='700'>Study Room</text>
+<text x='540' y='641' text-anchor='middle' font-size='10'>10' × 8'</text>
+<rect class='room' x='90' y='342' width='198' height='216'/>
+<text x='189' y='443' text-anchor='middle' font-size='12' font-weight='700'>Staircase</text>
+<text x='189' y='461' text-anchor='middle' font-size='10'>11' × 12'</text>
+<rect class='room' x='288' y='342' width='162' height='216'/>
+<text x='369' y='443' text-anchor='middle' font-size='12' font-weight='700'>Upper Lobby</text>
+<text x='369' y='461' text-anchor='middle' font-size='10'>9' × 12'</text>
+<rect class='room' x='450' y='450' width='180' height='108'/>
+<text x='540' y='497' text-anchor='middle' font-size='12' font-weight='700'>Toilet 3</text>
+<text x='540' y='515' text-anchor='middle' font-size='10'>10' × 6'</text>
+<rect class='room' x='450' y='342' width='180' height='108'/>
+<text x='540' y='389' text-anchor='middle' font-size='12' font-weight='700'>Passage</text>
+<text x='540' y='407' text-anchor='middle' font-size='10'>10' × 6'</text>
+<rect class='room' x='90' y='234' width='198' height='108'/>
+<text x='189' y='281' text-anchor='middle' font-size='12' font-weight='700'>Master Toilet (Toilet 2)</text>
+<text x='189' y='299' text-anchor='middle' font-size='10'>11' × 6'</text>
+<rect class='room' x='90' y='90' width='198' height='144'/>
+<text x='189' y='155' text-anchor='middle' font-size='12' font-weight='700'>Ventilation Duct</text>
+<text x='189' y='173' text-anchor='middle' font-size='10'>11' × 8'</text>
+<rect class='room' x='288' y='90' width='342' height='252'/>
+<text x='459' y='209' text-anchor='middle' font-size='12' font-weight='700'>Master Bedroom</text>
+<text x='459' y='227' text-anchor='middle' font-size='10'>19' × 14'</text>
+<line class='window' x1='180' y1='810' x2='252' y2='810'/>
+<line class='window' x1='630' y1='630' x2='630' y2='558'/>
+<line class='window' x1='630' y1='216' x2='630' y2='144'/>
+<line class='window' x1='450' y1='90' x2='522' y2='90'/>
+<line class='door' x1='288' y1='486' x2='288' y2='432'/>
+<line class='door' x1='360' y1='558' x2='414' y2='558'/>
+<line class='door' x1='288' y1='684' x2='288' y2='630'/>
+<line class='door' x1='450' y1='756' x2='450' y2='702'/>
+<line class='door' x1='450' y1='630' x2='450' y2='576'/>
+<line class='door' x1='450' y1='504' x2='450' y2='459'/>
+<line class='door' x1='360' y1='342' x2='423' y2='342'/>
+<line class='door' x1='288' y1='288' x2='288' y2='243'/>
+<line x1='90' y1='845' x2='630' y2='845' stroke='#333' stroke-width='3'/>
+<text x='360' y='870' text-anchor='middle' font-size='15' font-weight='700'>SOUTH ROAD</text>
+<line x1='670' y1='155' x2='670' y2='100' stroke='#111' stroke-width='3'/>
+<polygon points='663,110 670,95 677,110' fill='#111'/>
+<text x='670' y='85' text-anchor='middle' font-size='15' font-weight='700'>N</text>
+<text x='360' y='75' text-anchor='middle' font-size='13'>30'-0&quot;</text>
+<text x='65' y='450' text-anchor='middle' font-size='13' transform='rotate(-90 65 450)'>40'-0&quot;</text>
+<text x='90' y='975' font-size='10'>ENGINE: GEMINI 3.6 FLASH → BUILDMITRA VECTOR PROOF</text>
+</svg>
+

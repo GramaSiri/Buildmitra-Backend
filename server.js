@@ -60,8 +60,10 @@ app.use('/api/rates', require('./routes/rates'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/marketplace', require('./routes/marketplace'));
 app.use('/api/realestate', require('./routes/realestate'));
+app.use('/api/properties', require('./routes/realestate'));
 app.use('/api/construction-videos', require('./routes/construction-videos'));
 app.use('/api/expert-talks', require('./routes/expert-talks'));
+app.use('/api/property-intelligence', require('./routes/property-intelligence'));
 app.use('/api/learn-earn/games', require('./routes/games'));
 
 // Health Check
@@ -120,6 +122,7 @@ app.put('/api/enquiry/update/:enquiryCode', async (req, res) => {
 });
 
 const { startExpertTalkSyncJob } = require('./jobs/expertTalkSyncJob');
+const { startPropertyIntelligenceSyncJob } = require('./jobs/propertyIntelligenceSyncJob');
 
 const PORT = process.env.PORT || 5000;
 app.use('/api/labour-net', labourNetRoutes);
@@ -207,6 +210,10 @@ app.get("/api/marketplace/images/:id", async (req, res) => {
 });
 
 
+app.use('/api', require('./routes/bulkBuying'));
+
+const { startAuctionWorker } = require('./workers/auctionWorker');
+
 /* BM_RENDER_VERIFY_START */
 app.get("/api/bm-render-verify", (req, res) => {
   res.status(200).json({
@@ -220,6 +227,8 @@ app.get("/api/bm-render-verify", (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 BuildMitra Backend running on port ${PORT}`);
   startExpertTalkSyncJob();
+  startPropertyIntelligenceSyncJob();
+  startAuctionWorker();
 });
 
 

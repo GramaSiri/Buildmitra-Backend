@@ -1,0 +1,721 @@
+{
+  "project": {
+    "plotWidth": 30,
+    "plotLength": 40,
+    "facing": "SOUTH",
+    "storeys": 3
+  },
+  "floors": [
+    {
+      "level": 0,
+      "name": "Ground Floor",
+      "rooms": [
+        {
+          "id": "room_g_parking",
+          "name": "Car Parking",
+          "type": "parking",
+          "x": 0,
+          "y": 0,
+          "width": 11,
+          "depth": 14
+        },
+        {
+          "id": "room_g_foyer",
+          "name": "Entrance Foyer",
+          "type": "foyer",
+          "x": 11,
+          "y": 0,
+          "width": 9,
+          "depth": 5
+        },
+        {
+          "id": "room_g_kitchen",
+          "name": "Kitchen",
+          "type": "kitchen",
+          "x": 20,
+          "y": 0,
+          "width": 10,
+          "depth": 9
+        },
+        {
+          "id": "room_g_living",
+          "name": "Living Room",
+          "type": "living",
+          "x": 11,
+          "y": 5,
+          "width": 9,
+          "depth": 9
+        },
+        {
+          "id": "room_g_utility",
+          "name": "Utility",
+          "type": "utility",
+          "x": 20,
+          "y": 9,
+          "width": 10,
+          "depth": 5
+        },
+        {
+          "id": "room_g_stair",
+          "name": "Staircase",
+          "type": "staircase",
+          "x": 0,
+          "y": 14,
+          "width": 11,
+          "depth": 12
+        },
+        {
+          "id": "room_g_dining",
+          "name": "Dining Area",
+          "type": "dining",
+          "x": 11,
+          "y": 14,
+          "width": 9,
+          "depth": 12
+        },
+        {
+          "id": "room_g_pooja",
+          "name": "Pooja Room",
+          "type": "pooja",
+          "x": 20,
+          "y": 14,
+          "width": 10,
+          "depth": 6
+        },
+        {
+          "id": "room_g_lobby",
+          "name": "Ground Lobby",
+          "type": "corridor",
+          "x": 20,
+          "y": 20,
+          "width": 10,
+          "depth": 6
+        },
+        {
+          "id": "room_g_toilet1",
+          "name": "Common Toilet 1",
+          "type": "toilet",
+          "x": 0,
+          "y": 26,
+          "width": 11,
+          "depth": 6
+        },
+        {
+          "id": "room_g_duct",
+          "name": "Ventilation Duct",
+          "type": "duct",
+          "x": 0,
+          "y": 32,
+          "width": 11,
+          "depth": 8
+        },
+        {
+          "id": "room_g_bed1",
+          "name": "Bedroom 1",
+          "type": "bedroom",
+          "x": 11,
+          "y": 26,
+          "width": 19,
+          "depth": 14
+        }
+      ],
+      "doors": [
+        {
+          "id": "d_g_main",
+          "from": "outside",
+          "to": "room_g_foyer",
+          "wall": "south",
+          "x": 15,
+          "y": 0,
+          "width": 3.5,
+          "swing": "inward"
+        },
+        {
+          "id": "d_g_foyer_living",
+          "from": "room_g_foyer",
+          "to": "room_g_living",
+          "wall": "north",
+          "x": 15,
+          "y": 5,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_g_living_kitchen",
+          "from": "room_g_living",
+          "to": "room_g_kitchen",
+          "wall": "east",
+          "x": 20,
+          "y": 7,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_g_kitchen_utility",
+          "from": "room_g_kitchen",
+          "to": "room_g_utility",
+          "wall": "north",
+          "x": 25,
+          "y": 9,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_g_living_dining",
+          "from": "room_g_living",
+          "to": "room_g_dining",
+          "wall": "north",
+          "x": 15,
+          "y": 14,
+          "width": 4,
+          "swing": "inward"
+        },
+        {
+          "id": "d_g_dining_stair",
+          "from": "room_g_dining",
+          "to": "room_g_stair",
+          "wall": "west",
+          "x": 11,
+          "y": 18,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_g_dining_pooja",
+          "from": "room_g_dining",
+          "to": "room_g_pooja",
+          "wall": "east",
+          "x": 20,
+          "y": 17,
+          "width": 2.5,
+          "swing": "inward"
+        },
+        {
+          "id": "d_g_dining_lobby",
+          "from": "room_g_dining",
+          "to": "room_g_lobby",
+          "wall": "east",
+          "x": 20,
+          "y": 23,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_g_lobby_bed1",
+          "from": "room_g_lobby",
+          "to": "room_g_bed1",
+          "wall": "north",
+          "x": 25,
+          "y": 26,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_g_dining_toilet1",
+          "from": "room_g_dining",
+          "to": "room_g_toilet1",
+          "wall": "north",
+          "x": 11,
+          "y": 26,
+          "width": 2.5,
+          "swing": "inward"
+        }
+      ],
+      "windows": [
+        {
+          "id": "w_g_kitchen",
+          "roomId": "room_g_kitchen",
+          "wall": "south",
+          "x": 25,
+          "y": 0,
+          "width": 4
+        },
+        {
+          "id": "w_g_utility",
+          "roomId": "room_g_utility",
+          "wall": "east",
+          "x": 30,
+          "y": 11.5,
+          "width": 3
+        },
+        {
+          "id": "w_g_bed1_east",
+          "roomId": "room_g_bed1",
+          "wall": "east",
+          "x": 30,
+          "y": 33,
+          "width": 4
+        },
+        {
+          "id": "w_g_bed1_north",
+          "roomId": "room_g_bed1",
+          "wall": "north",
+          "x": 20,
+          "y": 40,
+          "width": 4
+        }
+      ],
+      "circulation": [
+        {
+          "from": "room_g_foyer",
+          "to": "room_g_living"
+        },
+        {
+          "from": "room_g_living",
+          "to": "room_g_kitchen"
+        },
+        {
+          "from": "room_g_kitchen",
+          "to": "room_g_utility"
+        },
+        {
+          "from": "room_g_living",
+          "to": "room_g_dining"
+        },
+        {
+          "from": "room_g_dining",
+          "to": "room_g_stair"
+        },
+        {
+          "from": "room_g_dining",
+          "to": "room_g_pooja"
+        },
+        {
+          "from": "room_g_dining",
+          "to": "room_g_lobby"
+        },
+        {
+          "from": "room_g_lobby",
+          "to": "room_g_bed1"
+        },
+        {
+          "from": "room_g_dining",
+          "to": "room_g_toilet1"
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "name": "First Floor",
+      "rooms": [
+        {
+          "id": "room_f_bed3",
+          "name": "Bedroom 3",
+          "type": "bedroom",
+          "x": 0,
+          "y": 0,
+          "width": 11,
+          "depth": 14
+        },
+        {
+          "id": "room_f_family",
+          "name": "Family Lounge",
+          "type": "living",
+          "x": 11,
+          "y": 0,
+          "width": 9,
+          "depth": 14
+        },
+        {
+          "id": "room_f_balcony",
+          "name": "Front Balcony",
+          "type": "balcony",
+          "x": 20,
+          "y": 0,
+          "width": 10,
+          "depth": 6
+        },
+        {
+          "id": "room_f_study",
+          "name": "Study Room",
+          "type": "study",
+          "x": 20,
+          "y": 6,
+          "width": 10,
+          "depth": 8
+        },
+        {
+          "id": "room_f_stair",
+          "name": "Staircase",
+          "type": "staircase",
+          "x": 0,
+          "y": 14,
+          "width": 11,
+          "depth": 12
+        },
+        {
+          "id": "room_f_lobby",
+          "name": "Upper Lobby",
+          "type": "corridor",
+          "x": 11,
+          "y": 14,
+          "width": 9,
+          "depth": 12
+        },
+        {
+          "id": "room_f_toilet3",
+          "name": "Toilet 3",
+          "type": "toilet",
+          "x": 20,
+          "y": 14,
+          "width": 10,
+          "depth": 6
+        },
+        {
+          "id": "room_f_passage",
+          "name": "Passage",
+          "type": "corridor",
+          "x": 20,
+          "y": 20,
+          "width": 10,
+          "depth": 6
+        },
+        {
+          "id": "room_f_toilet2",
+          "name": "Master Toilet (Toilet 2)",
+          "type": "toilet",
+          "x": 0,
+          "y": 26,
+          "width": 11,
+          "depth": 6
+        },
+        {
+          "id": "room_f_duct",
+          "name": "Ventilation Duct",
+          "type": "duct",
+          "x": 0,
+          "y": 32,
+          "width": 11,
+          "depth": 8
+        },
+        {
+          "id": "room_f_masterbed",
+          "name": "Master Bedroom",
+          "type": "bedroom",
+          "x": 11,
+          "y": 26,
+          "width": 19,
+          "depth": 14
+        }
+      ],
+      "doors": [
+        {
+          "id": "d_f_stair_lobby",
+          "from": "room_f_stair",
+          "to": "room_f_lobby",
+          "wall": "east",
+          "x": 11,
+          "y": 18,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_f_lobby_family",
+          "from": "room_f_lobby",
+          "to": "room_f_family",
+          "wall": "south",
+          "x": 15,
+          "y": 14,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_f_family_bed3",
+          "from": "room_f_family",
+          "to": "room_f_bed3",
+          "wall": "west",
+          "x": 11,
+          "y": 7,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_f_family_balcony",
+          "from": "room_f_family",
+          "to": "room_f_balcony",
+          "wall": "east",
+          "x": 20,
+          "y": 3,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_f_family_study",
+          "from": "room_f_family",
+          "to": "room_f_study",
+          "wall": "east",
+          "x": 20,
+          "y": 10,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_f_lobby_toilet3",
+          "from": "room_f_lobby",
+          "to": "room_f_toilet3",
+          "wall": "east",
+          "x": 20,
+          "y": 17,
+          "width": 2.5,
+          "swing": "inward"
+        },
+        {
+          "id": "d_f_lobby_masterbed",
+          "from": "room_f_lobby",
+          "to": "room_f_masterbed",
+          "wall": "north",
+          "x": 15,
+          "y": 26,
+          "width": 3.5,
+          "swing": "inward"
+        },
+        {
+          "id": "d_f_masterbed_toilet2",
+          "from": "room_f_masterbed",
+          "to": "room_f_toilet2",
+          "wall": "west",
+          "x": 11,
+          "y": 29,
+          "width": 2.5,
+          "swing": "inward"
+        }
+      ],
+      "windows": [
+        {
+          "id": "w_f_bed3_south",
+          "roomId": "room_f_bed3",
+          "wall": "south",
+          "x": 5,
+          "y": 0,
+          "width": 4
+        },
+        {
+          "id": "w_f_study_east",
+          "roomId": "room_f_study",
+          "wall": "east",
+          "x": 30,
+          "y": 10,
+          "width": 4
+        },
+        {
+          "id": "w_f_masterbed_east",
+          "roomId": "room_f_masterbed",
+          "wall": "east",
+          "x": 30,
+          "y": 33,
+          "width": 4
+        },
+        {
+          "id": "w_f_masterbed_north",
+          "roomId": "room_f_masterbed",
+          "wall": "north",
+          "x": 20,
+          "y": 40,
+          "width": 4
+        }
+      ],
+      "circulation": [
+        {
+          "from": "room_f_stair",
+          "to": "room_f_lobby"
+        },
+        {
+          "from": "room_f_lobby",
+          "to": "room_f_family"
+        },
+        {
+          "from": "room_f_family",
+          "to": "room_f_bed3"
+        },
+        {
+          "from": "room_f_family",
+          "to": "room_f_balcony"
+        },
+        {
+          "from": "room_f_family",
+          "to": "room_f_study"
+        },
+        {
+          "from": "room_f_lobby",
+          "to": "room_f_toilet3"
+        },
+        {
+          "from": "room_f_lobby",
+          "to": "room_f_masterbed"
+        },
+        {
+          "from": "room_f_masterbed",
+          "to": "room_f_toilet2"
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "name": "Second Floor",
+      "rooms": [
+        {
+          "id": "room_s_terrace_south",
+          "name": "Open Front Terrace",
+          "type": "terrace",
+          "x": 0,
+          "y": 0,
+          "width": 30,
+          "depth": 14
+        },
+        {
+          "id": "room_s_stair",
+          "name": "Staircase Tower",
+          "type": "staircase",
+          "x": 0,
+          "y": 14,
+          "width": 11,
+          "depth": 12
+        },
+        {
+          "id": "room_s_lobby",
+          "name": "Terrace Landing",
+          "type": "corridor",
+          "x": 11,
+          "y": 14,
+          "width": 9,
+          "depth": 12
+        },
+        {
+          "id": "room_s_terrace_mid",
+          "name": "Side Terrace",
+          "type": "terrace",
+          "x": 20,
+          "y": 14,
+          "width": 10,
+          "depth": 12
+        },
+        {
+          "id": "room_s_store",
+          "name": "Terrace Utility Store",
+          "type": "utility",
+          "x": 0,
+          "y": 26,
+          "width": 11,
+          "depth": 6
+        },
+        {
+          "id": "room_s_duct",
+          "name": "Ventilation Duct",
+          "type": "duct",
+          "x": 0,
+          "y": 32,
+          "width": 11,
+          "depth": 8
+        },
+        {
+          "id": "room_s_multipurpose",
+          "name": "Multipurpose Hall",
+          "type": "living",
+          "x": 11,
+          "y": 26,
+          "width": 19,
+          "depth": 14
+        }
+      ],
+      "doors": [
+        {
+          "id": "d_s_stair_lobby",
+          "from": "room_s_stair",
+          "to": "room_s_lobby",
+          "wall": "east",
+          "x": 11,
+          "y": 18,
+          "width": 3,
+          "swing": "inward"
+        },
+        {
+          "id": "d_s_lobby_terrace_south",
+          "from": "room_s_lobby",
+          "to": "room_s_terrace_south",
+          "wall": "south",
+          "x": 15,
+          "y": 14,
+          "width": 3,
+          "swing": "outward"
+        },
+        {
+          "id": "d_s_lobby_terrace_mid",
+          "from": "room_s_lobby",
+          "to": "room_s_terrace_mid",
+          "wall": "east",
+          "x": 20,
+          "y": 20,
+          "width": 3,
+          "swing": "outward"
+        },
+        {
+          "id": "d_s_lobby_multipurpose",
+          "from": "room_s_lobby",
+          "to": "room_s_multipurpose",
+          "wall": "north",
+          "x": 15,
+          "y": 26,
+          "width": 3.5,
+          "swing": "inward"
+        },
+        {
+          "id": "d_s_lobby_store",
+          "from": "room_s_lobby",
+          "to": "room_s_store",
+          "wall": "north",
+          "x": 11,
+          "y": 26,
+          "width": 2.5,
+          "swing": "inward"
+        }
+      ],
+      "windows": [
+        {
+          "id": "w_s_multi_east",
+          "roomId": "room_s_multipurpose",
+          "wall": "east",
+          "x": 30,
+          "y": 33,
+          "width": 4
+        },
+        {
+          "id": "w_s_multi_north",
+          "roomId": "room_s_multipurpose",
+          "wall": "north",
+          "x": 20,
+          "y": 40,
+          "width": 4
+        }
+      ],
+      "circulation": [
+        {
+          "from": "room_s_stair",
+          "to": "room_s_lobby"
+        },
+        {
+          "from": "room_s_lobby",
+          "to": "room_s_terrace_south"
+        },
+        {
+          "from": "room_s_lobby",
+          "to": "room_s_terrace_mid"
+        },
+        {
+          "from": "room_s_lobby",
+          "to": "room_s_multipurpose"
+        },
+        {
+          "from": "room_s_lobby",
+          "to": "room_s_store"
+        }
+      ]
+    }
+  ],
+  "designNotes": [
+    "Ground Floor features South facing entry with half-width single car parking bay.",
+    "Kitchen located in South-East corner and Pooja in North-East direction as per Vastu guidelines.",
+    "Staircase and wet plumbing stacks (Toilets 1, 2, store, and ventilation duct) strictly vertically aligned across Ground, First, and Second floors.",
+    "Master Bedroom placed on First Floor with direct attached toilet.",
+    "Second floor offers a versatile multipurpose room along with extensive open-air terrace spaces."
+  ]
+}
