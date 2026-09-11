@@ -65,6 +65,7 @@ app.use('/api/construction-videos', require('./routes/construction-videos'));
 app.use('/api/expert-talks', require('./routes/expert-talks'));
 app.use('/api/property-intelligence', require('./routes/property-intelligence'));
 app.use('/api/learn-earn/games', require('./routes/games'));
+app.use('/api/procurement/rfq', require('./routes/procurementRfq'));
 
 // Health Check
 app.get('/api/health', (req, res) => {
