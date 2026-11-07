@@ -7,6 +7,7 @@ const fs = require("fs");
 const router = express.Router();
 
 const RealEstateProperty = require("../models/RealEstateProperty");
+const { computePropertyIntelligence } = require("../services/propertyIntelligenceService");
 
 // Ensure upload directory exists
 const uploadDir = path.join(__dirname, "..", "uploads", "realestate");
@@ -111,33 +112,36 @@ function getFallbackImages(type) {
   return TYPE_IMAGES.plot;
 }
 
-function normalizeDoc(p) {
+function normalizeDoc(p, userLat = null, userLng = null) {
   const doc = p.toObject ? p.toObject() : { ...p };
 
-  // Normalize Images List (Max 3)
-  let imagesList = [];
-  if (Array.isArray(doc.images) && doc.images.length > 0) {
-    imagesList = doc.images.map((img) => (typeof img === "object" && img.url ? img.url : img)).filter(Boolean);
-  } else if (Array.isArray(doc.imageUrls) && doc.imageUrls.length > 0) {
-    imagesList = doc.imageUrls.filter(Boolean);
-  } else if (doc.coverImage) {
-    imagesList = [doc.coverImage];
-  } else if (doc.imageUrl) {
-    imagesList = [doc.imageUrl];
-  } else if (doc.image) {
-    imagesList = [doc.image];
+  // Normalize Images List (Collect all genuine user images)
+  const candidateImages = [];
+  if (doc.coverImage) candidateImages.push(doc.coverImage);
+  if (doc.imageUrl) candidateImages.push(doc.imageUrl);
+  if (doc.image) candidateImages.push(doc.image);
+  if (Array.isArray(doc.images)) {
+    doc.images.forEach((img) => {
+      const u = typeof img === "object" && img?.url ? img.url : img;
+      if (u) candidateImages.push(u);
+    });
+  }
+  if (Array.isArray(doc.imageUrls)) {
+    doc.imageUrls.forEach((u) => { if (u) candidateImages.push(u); });
   }
 
-  const userUploaded = imagesList.filter((img) => !String(img).includes("unsplash.com"));
-  if (userUploaded.length > 0) {
-    imagesList = userUploaded.slice(0, 3);
-  } else if (imagesList.length === 0) {
+  // Deduplicate and filter out empty strings
+  const uniqueCandidateImages = Array.from(new Set(candidateImages.map(String).map(s => s.trim()).filter(Boolean)));
+  
+  // Prioritize non-fallback genuine uploaded images
+  const genuineUploaded = uniqueCandidateImages.filter(img => !img.includes("unsplash.com") && !img.includes("placeholder"));
+  let imagesList = genuineUploaded.length > 0 ? genuineUploaded.slice(0, 5) : uniqueCandidateImages.slice(0, 5);
+
+  if (imagesList.length === 0) {
     imagesList = getFallbackImages(doc.propertyType);
   }
 
-  const cover = doc.coverImage && !String(doc.coverImage).includes("unsplash.com")
-    ? doc.coverImage
-    : imagesList[0] || "";
+  const cover = imagesList[0] || "";
 
   // Normalize Video (Max 1)
   const videoUrlVal = doc.videoUrl || (Array.isArray(doc.videoUrls) && doc.videoUrls[0]) || "";
@@ -170,7 +174,7 @@ function normalizeDoc(p) {
     ? doc.status
     : "Available";
 
-  return {
+  const baseNormalized = {
     ...doc,
     id: doc._id || doc.propertyCode,
     _id: doc._id,
@@ -190,10 +194,20 @@ function normalizeDoc(p) {
     builtUpArea: doc.builtUpArea || 0,
     totalArea: areaVal,
     areaUnit: doc.areaUnit || "sqft",
+    dimensions: doc.dimensions || `${areaVal} sqft`,
+    approach: doc.approach || doc.approachRoad || "40 Ft Asphalt",
+    approachRoad: doc.approachRoad || doc.approach || "40 Ft Asphalt",
+    roadFacing: doc.roadFacing || doc.facing || "East Facing Main Road",
+    zoning: doc.zoning || doc.approvalType || "BDA Approved",
+    sroOffice: doc.sroOffice || "",
+    guidanceValue: doc.guidanceValue || 0,
     locality: doc.locality || doc.location || doc.area || "",
     city: doc.city || doc.location || "",
     pincode: doc.pincode || "",
     address: doc.address || "",
+    location: doc.location || doc.address || `${doc.locality || ''}, ${doc.city || 'Bengaluru'}`.trim(),
+    lat: Number(doc.lat || doc.latitude || 0),
+    lng: Number(doc.lng || doc.longitude || 0),
     bedrooms: doc.bedrooms || 0,
     bathrooms: doc.bathrooms || 0,
     balconies: doc.balconies || 0,
@@ -203,6 +217,7 @@ function normalizeDoc(p) {
     amenities: Array.isArray(doc.amenities) ? doc.amenities : [],
     
     // Media attributes
+    image: cover || (imagesList && imagesList[0]) || "",
     images: imagesList,
     imageUrls: imagesList,
     coverImage: cover,
@@ -218,10 +233,17 @@ function normalizeDoc(p) {
     providerPhone: doc.providerPhone || "9986553549",
     providerUserCode: doc.providerUserCode || "REA-000002",
     providerRole: doc.providerRole || "realestate",
+    seller: {
+      companyName: doc.providerName || "Real Estate Provider",
+      sellerCode: doc.providerUserCode || "REA-000002",
+      phone: doc.providerPhone || "9986553549"
+    },
     status: statusVal,
     approvalStatus: approvalStatusVal,
     isActive: doc.isActive !== false,
   };
+
+  return computePropertyIntelligence(baseNormalized, userLat, userLng);
 }
 
 // Media upload handler supporting Images (Max 3), Video (Max 1), Documents (Max 5)
@@ -330,9 +352,25 @@ router.post("/upload", safeMediaUploadMiddleware, handleUploadedMedia);
  */
 router.get("/images/:filename", (req, res) => {
   const filename = path.basename(req.params.filename);
-  const filepath = path.join(uploadDir, filename);
+  let filepath = path.join(uploadDir, filename);
+
+  if (!fs.existsSync(filepath)) {
+    const candidatePaths = [
+      path.join(__dirname, "..", "uploads", "material-images", filename),
+      path.join(__dirname, "..", "uploads", "material-images", decodeURIComponent(filename)),
+      path.join(__dirname, "..", "uploads", "marketplace", filename),
+      path.join(__dirname, "..", "uploads", filename),
+    ];
+    for (const cp of candidatePaths) {
+      if (fs.existsSync(cp)) {
+        filepath = cp;
+        break;
+      }
+    }
+  }
+
   if (fs.existsSync(filepath)) {
-    const ext = path.extname(filename).toLowerCase();
+    const ext = path.extname(filepath).toLowerCase();
     const mime =
       ext === ".webp"
         ? "image/webp"
@@ -471,12 +509,15 @@ router.post("/", async (req, res) => {
  */
 router.get("/public", async (req, res) => {
   try {
+    const userLat = req.query.userLat !== undefined ? Number(req.query.userLat) : null;
+    const userLng = req.query.userLng !== undefined ? Number(req.query.userLng) : null;
+
     const rawList = await RealEstateProperty.find({
       isActive: { $ne: false },
       status: { $nin: ["inactive", "Inactive"] },
     }).sort({ createdAt: -1 }).limit(500);
 
-    const properties = rawList.map(normalizeDoc);
+    const properties = rawList.map((doc) => normalizeDoc(doc, userLat, userLng));
 
     res.json({
       success: true,
@@ -497,6 +538,9 @@ router.get("/public", async (req, res) => {
  */
 router.get("/mine/:providerUserCode", async (req, res) => {
   try {
+    const userLat = req.query.userLat !== undefined ? Number(req.query.userLat) : null;
+    const userLng = req.query.userLng !== undefined ? Number(req.query.userLng) : null;
+
     const code = String(req.params.providerUserCode || "").trim();
     const raw = await RealEstateProperty.find({
       $or: [
@@ -507,7 +551,7 @@ router.get("/mine/:providerUserCode", async (req, res) => {
       ],
     }).sort({ createdAt: -1 });
 
-    const properties = raw.map(normalizeDoc);
+    const properties = raw.map((doc) => normalizeDoc(doc, userLat, userLng));
 
     res.json({
       success: true,
@@ -524,11 +568,14 @@ router.get("/mine/:providerUserCode", async (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
+    const userLat = req.query.userLat !== undefined ? Number(req.query.userLat) : null;
+    const userLng = req.query.userLng !== undefined ? Number(req.query.userLng) : null;
+
     const raw = await RealEstateProperty.find({}).sort({ createdAt: -1 });
     res.json({
       success: true,
       count: raw.length,
-      properties: raw.map(normalizeDoc),
+      properties: raw.map((doc) => normalizeDoc(doc, userLat, userLng)),
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -658,6 +705,9 @@ router.put("/admin/:propertyCode/reject", requireAdmin, async (req, res) => {
  */
 router.get("/code/:propertyCode", async (req, res) => {
   try {
+    const userLat = req.query.userLat !== undefined ? Number(req.query.userLat) : null;
+    const userLng = req.query.userLng !== undefined ? Number(req.query.userLng) : null;
+
     const code = String(req.params.propertyCode || "").trim();
     const raw = await RealEstateProperty.findOne({
       $or: [
@@ -674,7 +724,7 @@ router.get("/code/:propertyCode", async (req, res) => {
       });
     }
 
-    res.json({ success: true, property: normalizeDoc(raw) });
+    res.json({ success: true, property: normalizeDoc(raw, userLat, userLng) });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -685,6 +735,9 @@ router.get("/code/:propertyCode", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
+    const userLat = req.query.userLat !== undefined ? Number(req.query.userLat) : null;
+    const userLng = req.query.userLng !== undefined ? Number(req.query.userLng) : null;
+
     const id = req.params.id;
     const raw = await RealEstateProperty.findOne({
       $or: [
@@ -695,7 +748,7 @@ router.get("/:id", async (req, res) => {
     });
 
     if (!raw) return res.status(404).json({ success: false, message: "Property not found" });
-    res.json({ success: true, property: normalizeDoc(raw) });
+    res.json({ success: true, property: normalizeDoc(raw, userLat, userLng) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -871,4 +924,71 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+
+// Real Estate Deals Persistence
+const RealEstateDeal = require("../models/RealEstateDeal");
+
+const DEFAULT_DEALS = [
+  { dealId: "DEAL-101", propertyId: "REP-MEDIA-064401", propertyTitle: "LBS Nagar Residential Villa Plot", buyerName: "Anand Kumar", finalPriceCr: 1.57, commissionEarnedLakhs: 3.14, closedDate: "2026-08-15", sroOffice: "SRO JP Nagar / Jayanagar" }
+];
+
+router.get("/deals/:userCode", async (req, res) => {
+  try {
+    const userCode = String(req.params.userCode || "").trim();
+    if (!userCode) return res.json({ success: true, count: 0, deals: [] });
+
+    const regex = new RegExp(`^${userCode.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}$`, "i");
+    let deals = await RealEstateDeal.find({ userCode: regex }).sort({ createdAt: -1 });
+
+    if (deals.length === 0) {
+      const seeded = DEFAULT_DEALS.map(d => ({ ...d, userCode }));
+      deals = await RealEstateDeal.insertMany(seeded);
+    }
+
+    res.json({ success: true, count: deals.length, deals });
+  } catch (error) {
+    console.error("Get deals error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get("/deals", async (req, res) => {
+  try {
+    const userCode = String(req.headers["x-user-code"] || req.query.userCode || "").trim();
+    if (!userCode) return res.json({ success: true, count: 0, deals: [] });
+
+    const regex = new RegExp(`^${userCode.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}$`, "i");
+    const deals = await RealEstateDeal.find({ userCode: regex }).sort({ createdAt: -1 });
+    res.json({ success: true, count: deals.length, deals });
+  } catch (error) {
+    console.error("Get deals error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post("/deals", async (req, res) => {
+  try {
+    const userCode = String(req.headers["x-user-code"] || req.body.userCode || req.body.sellerCode || "").trim();
+    if (!userCode) return res.status(400).json({ success: false, message: "userCode is required" });
+
+    const dealCount = await RealEstateDeal.countDocuments({ userCode: new RegExp(`^${userCode.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}$`, "i") });
+    const dealId = req.body.id || req.body.dealId || `DEAL-${dealCount + 101}`;
+
+    const deal = new RealEstateDeal({
+      ...req.body,
+      userCode,
+      dealId,
+      finalPriceCr: Number(req.body.finalPriceCr) || 0,
+      commissionEarnedLakhs: Number(req.body.commissionEarnedLakhs) || 0
+    });
+
+    await deal.save();
+    res.status(201).json({ success: true, deal });
+  } catch (error) {
+    console.error("Create deal error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;
+

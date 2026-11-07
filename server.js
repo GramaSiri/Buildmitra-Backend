@@ -1,4 +1,5 @@
-const labourNetRoutes = require('./routes/labourNet');
+const labourNetRoutes = require('./routes/labourNet');
+
 const drgV2Router = require("./routes/drg-v2");
 const express = require('express');
 const securityShield = require('./middleware/securityShield');
@@ -65,7 +66,12 @@ app.use('/api/construction-videos', require('./routes/construction-videos'));
 app.use('/api/expert-talks', require('./routes/expert-talks'));
 app.use('/api/property-intelligence', require('./routes/property-intelligence'));
 app.use('/api/learn-earn/games', require('./routes/games'));
+app.use('/api/learn-earn', require('./routes/learnEarn'));
 app.use('/api/procurement/rfq', require('./routes/procurementRfq'));
+app.use('/api/labour-supply', require('./routes/labour-supply'));
+app.use('/api/machine-hire', require('./routes/machine-hire'));
+app.use('/api/vendor', require('./routes/vendor'));
+app.use('/api/contractor', require('./routes/contractor'));
 
 // Health Check
 app.get('/api/health', (req, res) => {
@@ -236,4 +242,8 @@ app.listen(PORT, () => {
 
 
 
+
+
+const liveRatesRouter = require('./routes/liveRates');
+app.use('/api', liveRatesRouter);
 

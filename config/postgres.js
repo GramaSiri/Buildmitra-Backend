@@ -4,36 +4,59 @@ require("dotenv").config();
 let pool = null;
 let isPgConnected = false;
 
-try {
-  const connectionString = process.env.DATABASE_URL;
-  if (connectionString) {
-    pool = new Pool({
-      connectionString,
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
-    });
-  } else {
-    pool = new Pool({
-      host: process.env.PGHOST || process.env.DB_HOST || "localhost",
-      port: Number(process.env.PGPORT || 5432),
-      user: process.env.PGUSER || process.env.DB_USER || "postgres",
-      password: process.env.PGPASSWORD || process.env.DB_PASSWORD || "postgres",
-      database: process.env.PGDATABASE || process.env.DB_NAME || "buildmitra_db",
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000
-    });
-  }
+// Optional PostgreSQL integration:
+// BuildMitra operates with MongoDB as its primary database and memoryStore as the real-time cache.
+// Only initialize a PostgreSQL client pool if an explicit connection URL or PG host is provided in env.
+const hasExplicitPgConfig = Boolean(
+  process.env.DATABASE_URL ||
+  (process.env.ENABLE_POSTGRES === "true" && (process.env.PGHOST || process.env.DB_HOST))
+);
 
-  pool.on("connect", () => {
-    isPgConnected = true;
-  });
+if (hasExplicitPgConfig) {
+  try {
+    const connectionString = process.env.DATABASE_URL;
+    if (connectionString) {
+      pool = new Pool({
+        connectionString,
+        ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+        connectionTimeoutMillis: 3000
+      });
+    } else {
+      pool = new Pool({
+        host: process.env.PGHOST || process.env.DB_HOST,
+        port: Number(process.env.PGPORT || 5432),
+        user: process.env.PGUSER || process.env.DB_USER,
+        password: process.env.PGPASSWORD || process.env.DB_PASSWORD,
+        database: process.env.PGDATABASE || process.env.DB_NAME,
+        max: 10,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 3000
+      });
+    }
 
-  pool.on("error", (err) => {
-    console.error("⚠️ PostgreSQL pool connection error:", err.message);
+    pool.on("connect", () => {
+      isPgConnected = true;
+    });
+
+    pool.on("error", (err) => {
+      isPgConnected = false;
+      if (process.env.DEBUG_POSTGRES === "true") {
+        console.warn("⚠️ PostgreSQL client connection error:", err.message);
+      }
+    });
+
+    // Test connection once quietly without repeating error loops
+    pool.query("SELECT 1")
+      .then(() => {
+        isPgConnected = true;
+      })
+      .catch(() => {
+        isPgConnected = false;
+      });
+  } catch (err) {
+    pool = null;
     isPgConnected = false;
-  });
-} catch (err) {
-  console.warn("⚠️ Unable to initialize PostgreSQL pool:", err.message);
+  }
 }
 
 // In-memory fallback dataset for seamless API execution
@@ -122,12 +145,15 @@ const memoryStore = {
 };
 
 async function query(text, params = []) {
-  if (pool) {
+  if (pool && isPgConnected) {
     try {
       const res = await pool.query(text, params);
       return res;
     } catch (err) {
-      console.warn("⚠️ Postgres query error, executing fallback memory query:", err.message);
+      isPgConnected = false;
+      if (process.env.DEBUG_POSTGRES === "true") {
+        console.warn("⚠️ Postgres query error:", err.message);
+      }
     }
   }
   return { rows: [], rowCount: 0 };
@@ -137,5 +163,5 @@ module.exports = {
   pool,
   query,
   memoryStore,
-  isPgConnected: () => isPgConnected
+  isPgConnected: () => Boolean(pool && isPgConnected)
 };

@@ -8,6 +8,9 @@ router.post('/create', controller.createRfq);
 // 2. Search Eligible Suppliers
 router.get('/eligible-suppliers', controller.getEligibleSuppliers);
 
+// 2b. Master Materials Catalog
+router.get('/master-catalog', controller.getMasterCatalog);
+
 // 3. Buyer RFQ List
 router.get('/buyer-list', controller.getBuyerRfqs);
 

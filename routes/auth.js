@@ -3,7 +3,17 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
+function getJwtSecret() {
+  const secret = String(process.env.JWT_SECRET || "").trim();
+
+  if (!secret || secret === "your_secret_key") {
+    const error = new Error("JWT_SECRET is not securely configured");
+    error.code = "JWT_SECRET_MISSING";
+    throw error;
+  }
+
+  return secret;
+}
 
 const ALLOWED_BUSINESS_ROLES = [
   "buyer",
@@ -64,7 +74,7 @@ function createToken(user) {
       businessRole: user.businessRole,
       role: user.role
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: "7d" }
   );
 }
@@ -173,7 +183,7 @@ router.post("/register", async (req, res) => {
       state: String(req.body.state || "").trim(),
       pincode: normalizedPincode,
 
-      subscriptionPlan: ["basic", "professional", "business"].includes(
+      subscriptionPlan: ["basic", "professional", "enterprise"].includes(
         String(req.body.subscriptionPlan || req.body.planId || req.body.plan || "basic").toLowerCase()
       )
         ? String(req.body.subscriptionPlan || req.body.planId || req.body.plan || "basic").toLowerCase()
@@ -299,117 +309,17 @@ router.post("/login", async (req, res) => {
 
 // Check registered phone and role
 router.post("/forgot-password/check-phone", async (req, res) => {
-  try {
-    const phone = normalizePhone(req.body.phone);
-    const requestedRole = normalizeRole(req.body.businessRole);
-
-    if (phone.length !== 10) {
-      return res.status(400).json({
-        success: false,
-        message: "Enter a valid registered mobile number"
-      });
-    }
-
-    const user = await User.findOne({ phone });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "No account found with this mobile number"
-      });
-    }
-
-    if (
-      requestedRole &&
-      normalizeRole(user.businessRole) !== requestedRole
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: `This mobile number is registered as ${user.businessRole}`
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: "Mobile number verified",
-      businessRole: user.businessRole,
-
-      // Temporary beta OTP only.
-      betaOtp: "123456"
-    });
-  } catch (error) {
-    console.error("Forgot-password check error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Unable to verify mobile number"
-    });
-  }
+  return res.status(503).json({
+    success: false,
+    message: "Password reset is temporarily unavailable. Please contact BuildMitra support."
+  });
 });
 
-// Reset password - temporary beta OTP flow
 router.post("/forgot-password/reset", async (req, res) => {
-  try {
-    const phone = normalizePhone(req.body.phone);
-    const requestedRole = normalizeRole(req.body.businessRole);
-    const otp = String(req.body.otp || "").trim();
-    const newPassword = String(req.body.newPassword || "");
-
-    if (phone.length !== 10) {
-      return res.status(400).json({
-        success: false,
-        message: "Enter a valid registered mobile number"
-      });
-    }
-
-    if (otp !== "123456") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP"
-      });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: "Password must be at least 6 characters"
-      });
-    }
-
-    const user = await User.findOne({ phone });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "No account found with this mobile number"
-      });
-    }
-
-    if (
-      requestedRole &&
-      normalizeRole(user.businessRole) !== requestedRole
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: `This mobile number is registered as ${user.businessRole}`
-      });
-    }
-
-    user.password = newPassword;
-    await user.save();
-
-    return res.json({
-      success: true,
-      message: "Password reset successful"
-    });
-  } catch (error) {
-    console.error("Password reset error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Password reset failed. Please try again."
-    });
-  }
+  return res.status(503).json({
+    success: false,
+    message: "Password reset is temporarily unavailable. Please contact BuildMitra support."
+  });
 });
-
 module.exports = router;
+

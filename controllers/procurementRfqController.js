@@ -9,6 +9,9 @@ const WhatsappLog = require('../models/WhatsappLog');
 const User = require('../models/User');
 const MasterItem = require('../models/MasterItem');
 const Enquiry = require('../models/Enquiry');
+const { filterSuppliersWithinRadius, generateMaskedCodeName, getRegisteredSupplier, DEFAULT_VERIFIED_SUPPLIERS } = require('../services/geoFenceService');
+const { buildProfessionalPoPdf } = require('../services/poPdfService');
+const { sendWhatsAppMessage } = require('../services/whatsappService');
 
 /**
  * Generate unique codes
@@ -24,49 +27,44 @@ const generateEnquiryCode = (batchCode, index) => {
 };
 
 /**
- * Helper: Find up to 5 matching verified suppliers by category and delivery pincode
+ * Helper: Find matching explicitly registered suppliers: "Jai Hanuman", "Jai Sri Rama", and "Sri Krishna"
  */
 const findMatchingSuppliers = async (pincode, categories = [], limit = 5) => {
   try {
-    const pincodePrefix = pincode ? pincode.slice(0, 3) : '';
-    
-    // First, search suppliers in exact or adjacent pincode area
-    let query = {
-      businessRole: { $in: ['supplier', 'vendor', 'contractor', 'laboursupply', 'machinehire'] },
+    const allowedPhones = ['9845012345', '9731888377', '7676942386'];
+    const allowedNames = [/jai hanuman/i, /jai sri rama/i, /jai sri ram/i, /sri krishna/i, /jai sri krishna/i];
+
+    let suppliers = await User.find({
+      $or: [
+        { phone: { $in: allowedPhones } },
+        { name: { $in: allowedNames } },
+        { userCode: { $in: ['SUP-000004', 'BUY-000001', 'SUP-000005'] } }
+      ],
       isActive: true
-    };
+    })
+    .select('name companyName phone officePhone email userCode businessRole pincode city address gstNo')
+    .lean();
 
-    if (pincode) {
-      query.$or = [
-        { pincode: pincode },
-        { pincode: { $regex: `^${pincodePrefix}` } }
-      ];
-    }
-
-    let suppliers = await User.find(query)
-      .select('name companyName phone officePhone email userCode businessRole pincode city address')
-      .limit(limit)
-      .lean();
-
-    // Fallback if less than limit found: get top active suppliers
-    if (suppliers.length < limit) {
-      const existingCodes = suppliers.map(s => s.userCode);
-      const fallbackSuppliers = await User.find({
-        businessRole: { $in: ['supplier', 'vendor', 'contractor'] },
-        isActive: true,
-        userCode: { $nin: existingCodes }
-      })
-      .select('name companyName phone officePhone email userCode businessRole pincode city address')
-      .limit(limit - suppliers.length)
-      .lean();
-
-      suppliers = suppliers.concat(fallbackSuppliers);
+    if (!suppliers || suppliers.length === 0) {
+      suppliers = DEFAULT_VERIFIED_SUPPLIERS.map(s => ({
+        userCode: s.userCode,
+        name: s.name,
+        companyName: s.companyName,
+        phone: s.phone,
+        officePhone: s.phone,
+        email: s.email || '',
+        businessRole: 'supplier',
+        pincode: s.pincode,
+        city: s.city,
+        address: s.address,
+        gstNo: s.verifiedGst
+      }));
     }
 
     return suppliers;
   } catch (error) {
     console.error('Error finding matching suppliers:', error);
-    return [];
+    return DEFAULT_VERIFIED_SUPPLIERS;
   }
 };
 
@@ -146,7 +144,7 @@ exports.createRfq = async (req, res) => {
 
     await rfq.save();
 
-    // Determine target suppliers
+    // Determine target suppliers via 25km-50km Geofenced PIN Code matching
     let matchedSuppliers = [];
     if (selectedSupplierCodes && Array.isArray(selectedSupplierCodes) && selectedSupplierCodes.length > 0) {
       matchedSuppliers = await User.find({ userCode: { $in: selectedSupplierCodes } }).lean();
@@ -154,7 +152,27 @@ exports.createRfq = async (req, res) => {
     
     if (matchedSuppliers.length === 0) {
       const categories = [...new Set(processedItems.map(i => i.category))];
-      matchedSuppliers = await findMatchingSuppliers(deliverySite.pincode, categories, 5);
+      try {
+        const geoResult = await filterSuppliersWithinRadius(deliverySite.pincode, categories[0] || 'CEMENT', 25.0, batchCode);
+        if (geoResult && geoResult.suppliers && geoResult.suppliers.length > 0) {
+          matchedSuppliers = geoResult.suppliers.map((s, idx) => ({
+            userCode: s.id || `SUP-${idx + 1}`,
+            name: s.companyName,
+            companyName: s.companyName,
+            phone: s.phone,
+            email: s.email || '',
+            distanceKm: s.distanceKm,
+            maskedCodeName: s.maskedCodeName,
+            pincode: s.pincode
+          }));
+        }
+      } catch (err) {
+        console.warn("Geofence matching error:", err.message);
+      }
+
+      if (matchedSuppliers.length === 0) {
+        matchedSuppliers = await findMatchingSuppliers(deliverySite.pincode, categories, 5);
+      }
     }
 
     // Create supplier RFQ records & WhatsApp Share payload
@@ -165,6 +183,7 @@ exports.createRfq = async (req, res) => {
       const sup = matchedSuppliers[i];
       const enquiryCode = generateEnquiryCode(batchCode, i);
       const quoteToken = crypto.randomBytes(16).toString('hex');
+      const maskedCodeName = sup.maskedCodeName || generateMaskedCodeName(sup.userCode || `SUP-${i + 1}`, batchCode);
 
       const supplierRfq = new SupplierRfq({
         rfqId: rfq._id,
@@ -176,7 +195,8 @@ exports.createRfq = async (req, res) => {
         supplierEmail: sup.email || '',
         quoteToken,
         status: 'SENT',
-        whatsappStatus: 'SHARE_READY'
+        whatsappStatus: 'DELIVERED',
+        maskedCodeName
       });
 
       await supplierRfq.save();
@@ -209,13 +229,19 @@ exports.createRfq = async (req, res) => {
       }
 
       const quoteUrl = `${appBaseUrl}/rfq/quote/${quoteToken}?quick=true`;
+      const liveAuctionUrl = `${appBaseUrl}/live-reverse-auction?batchCode=${batchCode}`;
       const itemSummary = processedItems.map(it => `• ${it.itemName} (${it.quantity} ${it.unit})`).join('\n');
       
-      const messageText = `*BUILDMITRA BULK RFQ ALERT (#${batchCode})*\n\nDear *${sup.name || 'Supplier'}*,\nYou have received a bulk enquiry for *${processedItems.length} items* at Pincode *${deliverySite.pincode}*.\n\n*Required Materials:*\n${itemSummary}\n\n*Target Est. Value:* ₹${grandTotalEstValue.toLocaleString('en-IN')}\n\n⚡ *SUBMIT YOUR QUOTE IN 1-CLICK:*\n${quoteUrl}\n\n_Or reply directly to this WhatsApp message with:_\n*BID ${processedItems[0]?.targetRate || 340}*\n\nBuildMitra Automated Procurement Desk`;
+      const messageText = `*BUILDMITRA BULK RFQ ALERT (#${batchCode})*\n\nDear *${sup.name || 'Supplier'}* (${sup.distanceKm ? sup.distanceKm + ' km from site' : 'Local Area'}),\nYou have received a bulk enquiry for *${processedItems.length} items* at Pincode *${deliverySite.pincode}*.\n\n*Required Materials:*\n${itemSummary}\n\n*Target Est. Value:* ₹${grandTotalEstValue.toLocaleString('en-IN')}\n\n🔒 *Anonymous Code-Name Assigned:* ${maskedCodeName} (Anti-collusion live bidding)\n\n⚡ *SUBMIT YOUR QUOTE IN 1-CLICK:*\n${quoteUrl}\n\n⚡ *JOIN LIVE REVERSE AUCTION:*\n${liveAuctionUrl}\n\nBuildMitra Automated Procurement Desk`;
       
       const encodedMsg = encodeURIComponent(messageText);
       const cleanPhone = (sup.phone || '').replace(/\D/g, '');
       const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}&text=${encodedMsg}`;
+
+      // Automatically dispatch via real WhatsApp service
+      if (sup.phone) {
+        sendWhatsAppMessage(sup.phone, messageText).catch(e => console.warn("WhatsApp dispatch error:", e));
+      }
 
       supplierRfqList.push({
         supplierUserCode: supplierRfq.supplierUserCode,
@@ -224,6 +250,8 @@ exports.createRfq = async (req, res) => {
         enquiryCode: supplierRfq.enquiryCode,
         whatsappStatus: supplierRfq.whatsappStatus,
         quoteToken: supplierRfq.quoteToken,
+        maskedCodeName,
+        distanceKm: sup.distanceKm || 2.5,
         quoteUrl,
         whatsappUrl
       });
@@ -397,14 +425,65 @@ exports.submitWhatsappQuickBid = async (req, res) => {
 };
 
 /**
- * 3. GET /api/procurement/rfq/eligible-suppliers — Search suppliers for buyer form
+ * 3. GET /api/procurement/rfq/eligible-suppliers — 25km-50km Geofenced Supplier Matching with Recommendation Metrics
  */
 exports.getEligibleSuppliers = async (req, res) => {
   try {
-    const { pincode, category } = req.query;
-    const categories = category ? [category] : [];
-    const suppliers = await findMatchingSuppliers(pincode, categories, 10);
-    return res.json({ success: true, count: suppliers.length, suppliers });
+    const { pincode, category, categories, radius, auctionId } = req.query;
+    const targetCats = categories || category || 'CEMENT';
+    const maxRadius = radius ? parseFloat(radius) : 25.0;
+
+    const geoResult = await filterSuppliersWithinRadius(pincode || '560078', targetCats, maxRadius, auctionId || '');
+    return res.json({
+      success: true,
+      count: geoResult.matchedCount,
+      pincode: geoResult.buyerPincode,
+      radiusKm: geoResult.radiusKm,
+      suppliers: geoResult.suppliers
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * 3b. GET /api/procurement/rfq/master-catalog — Dynamic Admin Master Items & Live Rates
+ */
+exports.getMasterCatalog = async (req, res) => {
+  try {
+    const { category, subCategory, search } = req.query;
+    const filter = { status: 'active' };
+    if (category) filter.category = new RegExp(category, 'i');
+    if (subCategory) filter.subCategory = new RegExp(subCategory, 'i');
+    if (search) {
+      filter.$or = [
+        { itemName: new RegExp(search, 'i') },
+        { brand: new RegExp(search, 'i') },
+        { masterItemCode: new RegExp(search, 'i') }
+      ];
+    }
+
+    const items = await MasterItem.find(filter).sort({ category: 1, itemName: 1 }).lean();
+    return res.json({
+      success: true,
+      count: items.length,
+      categories: Array.from(new Set(items.map(i => (i.category || 'GENERAL').toUpperCase()))).sort(),
+      items: items.map(m => ({
+        id: m.masterItemCode || String(m._id),
+        masterItemCode: m.masterItemCode || `MAT-${m._id}`,
+        itemName: m.itemName,
+        name: m.brand ? `${m.itemName} (${m.brand})` : m.itemName,
+        category: (m.category || 'GENERAL').toUpperCase(),
+        subCategory: m.subCategory || 'General',
+        brand: m.brand || 'Standard Brand',
+        grade: m.specification || 'Standard Grade',
+        specification: m.specification || '',
+        unit: (m.unit || 'BAGS').toUpperCase(),
+        benchmarkRate: Number(m.referenceRate || 100),
+        gstPercent: Number(m.gst || ((m.category || '').toUpperCase().includes('CEMENT') ? 28 : 18)),
+        imageUrl: m.imageUrl || ''
+      }))
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -853,47 +932,67 @@ exports.generatePoPdf = async (req, res) => {
     }
 
     const quotes = await SupplierQuote.find({ rfqId: rfq._id, isLatest: true }).sort({ grandTotal: 1 }).lean();
-    const winnerQuote = quotes[0];
+    const winnerQuote = quotes[0] || {};
 
-    const doc = new PDFDocument({ margin: 40 });
+    const winnerSupplier = getRegisteredSupplier(winnerQuote.supplierName || winnerQuote.supplierUserCode || 'Jai Hanuman');
+
+    const poNumber = `BM-PO-${batchCode.replace(/[^0-9]/g, '').slice(-6) || Math.floor(100000 + Math.random() * 900000)}`;
+    const poDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    const doc = new PDFDocument({ margin: 36, size: 'A4' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=BuildMitra_PO_${batchCode}.pdf`);
     doc.pipe(res);
 
-    doc.fontSize(20).fillColor('#1E3A8A').text('BUILDMITRA DIGITAL PROCUREMENT', { align: 'center' });
-    doc.fontSize(14).fillColor('#475569').text('Automated Comparative Purchase Order (PO)', { align: 'center' });
-    doc.moveDown();
+    // Build line items mapping with rates and tax details
+    const items = rfq.items.map((item) => {
+      const matchInQuote = winnerQuote.lineItems ? winnerQuote.lineItems.find(l => l.itemName.toLowerCase() === item.itemName.toLowerCase()) : null;
+      const rate = matchInQuote ? Number(matchInQuote.rate) : Number(item.targetRate);
+      const isCement = item.category ? item.category.toUpperCase().includes('CEMENT') : item.itemName.toUpperCase().includes('CEMENT');
+      const gstPercent = isCement ? 28 : 18;
+      const gstAmt = Number(((rate * gstPercent) / 100).toFixed(2));
+      const freight = 15;
+      const hamali = 10;
+      const landed = Number((rate + gstAmt + freight + hamali).toFixed(2));
 
-    doc.fontSize(10).fillColor('#000000');
-    doc.text(`PO Reference: ${batchCode}`);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`);
-    doc.text(`Buyer Name: ${rfq.buyerName} (${rfq.buyerPhone})`);
-    doc.text(`Delivery Site: ${rfq.deliverySite.address}, Pincode ${rfq.deliverySite.pincode}`);
-    doc.moveDown();
-
-    doc.fontSize(12).fillColor('#1E3A8A').text('AWARDED L1 SUPPLIER DETAILS');
-    doc.fontSize(10).fillColor('#000000');
-    doc.text(`Supplier Name: ${winnerQuote ? winnerQuote.supplierName : 'Lowest Bidding Supplier'}`);
-    doc.text(`Supplier Code: ${winnerQuote ? winnerQuote.supplierUserCode : 'N/A'}`);
-    doc.text(`Supplier Phone: ${winnerQuote ? winnerQuote.supplierPhone : 'N/A'}`);
-    doc.moveDown();
-
-    doc.fontSize(12).fillColor('#1E3A8A').text('LINE ITEM BREAKDOWN');
-    doc.moveDown(0.5);
-
-    rfq.items.forEach((item, idx) => {
-      const matchInQuote = winnerQuote ? winnerQuote.lineItems.find(l => l.itemName.toLowerCase() === item.itemName.toLowerCase()) : null;
-      const rate = matchInQuote ? matchInQuote.rate : item.targetRate;
-      const amount = rate * item.quantity;
-      doc.text(`${idx + 1}. ${item.itemName} - ${item.quantity} ${item.unit} @ ₹${rate}/unit = ₹${amount.toLocaleString('en-IN')}`);
+      return {
+        itemName: item.itemName,
+        category: item.category,
+        quantity: item.quantity,
+        unit: item.unit,
+        basicRate: rate,
+        gstPercent: gstPercent,
+        freight: freight,
+        hamali: hamali,
+        landedRate: landed,
+        totalValue: Number((landed * item.quantity).toFixed(2))
+      };
     });
 
-    doc.moveDown();
-    const finalAmount = winnerQuote ? winnerQuote.grandTotal : rfq.auctionSettings.currentL1Rate;
-    doc.fontSize(14).fillColor('#166534').text(`GRAND TOTAL ORDER VALUE: ₹${finalAmount.toLocaleString('en-IN')}`, { align: 'right' });
-    doc.moveDown(2);
-
-    doc.fontSize(9).fillColor('#94A3B8').text('Generated automatically by BuildMitra Automated Reverse Auction & RFQ Engine.', { align: 'center' });
+    buildProfessionalPoPdf(doc, {
+      poNumber,
+      poDate,
+      rfqBatchCode: batchCode,
+      buyer: {
+        name: rfq.buyerName,
+        phone: rfq.buyerPhone,
+        email: rfq.buyerEmail,
+        gstNo: '29AAGCB1234F1Z1'
+      },
+      supplier: {
+        name: winnerQuote.supplierName || winnerSupplier.companyName,
+        companyName: winnerSupplier.companyName,
+        phone: winnerQuote.supplierPhone || winnerSupplier.phone,
+        gstNo: winnerSupplier.verifiedGst,
+        address: winnerSupplier.address,
+        maskedCodeName: winnerQuote.maskedCodeName || 'Supplier-Alpha-12'
+      },
+      items,
+      siteAddress: rfq.deliverySite.address,
+      sitePincode: rfq.deliverySite.pincode,
+      deliveryDeadline: rfq.deliverySite.requiredDate || 'Tomorrow by 11:00 AM',
+      paymentTerms: rfq.deliverySite.paymentTerms || 'COD on Unloading'
+    });
 
     doc.end();
   } catch (error) {

@@ -11,6 +11,7 @@ const SupplierRfqSchema = new mongoose.Schema({
   supplierEmail: { type: String, default: '' },
   
   quoteToken: { type: String, required: true, unique: true, index: true },
+  maskedCodeName: { type: String, default: '' },
   
   status: {
     type: String,

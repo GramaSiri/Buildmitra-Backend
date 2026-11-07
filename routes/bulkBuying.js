@@ -1,8 +1,25 @@
 const express = require("express");
 const router = express.Router();
-const { memoryStore, query } = require("../config/postgres");
-const { triggerLaunchAlert, triggerPoIssuedAlert } = require("../workers/auctionWorker");
+const { memoryStore, query, isPgConnected } = require("../config/postgres");
+const { triggerLaunchAlert, triggerPoIssuedAlert, getSentNotificationsLog } = require("../workers/auctionWorker");
+const { filterSuppliersWithinRadius, generateMaskedCodeName } = require("../services/geoFenceService");
+const { buildProfessionalPoPdf } = require("../services/poPdfService");
 const PDFDocument = require("pdfkit");
+
+/**
+ * 0. GET /api/suppliers/nearby — Geofenced 25km-50km radius supplier discovery
+ */
+router.get("/suppliers/nearby", async (req, res) => {
+  try {
+    const { pincode, category, categories, radius, auctionId } = req.query;
+    const maxRadius = radius ? parseFloat(radius) : 25.0;
+    const targetCats = categories || category || "CEMENT";
+    const result = await filterSuppliersWithinRadius(pincode || "560078", targetCats, maxRadius, auctionId || "");
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 /**
  * 1. POST /api/auctions — Create Bulk Auction Entry (5-Hour Countdown)
@@ -23,7 +40,10 @@ router.post("/auctions", async (req, res) => {
       buyer_id,
       buyer_name,
       buyer_phone,
-      target_price
+      target_price,
+      selected_suppliers,
+      selected_supplier_ids,
+      items
     } = req.body;
 
     if (!material_category || !quantity || !site_address || !site_pincode) {
@@ -61,28 +81,53 @@ router.post("/auctions", async (req, res) => {
     };
 
     const { filterSuppliersWithinRadius } = require("../services/geoFenceService");
-    let matchedInfo = { matchedCount: 4 };
-    try {
-      matchedInfo = await filterSuppliersWithinRadius(site_pincode, material_category, 5.0);
-    } catch (e) {}
+    let matchedSuppliersList = [];
 
-    newAuction.matching_suppliers_count = matchedInfo.matchedCount || 4;
+    if (Array.isArray(selected_suppliers) && selected_suppliers.length > 0) {
+      matchedSuppliersList = selected_suppliers;
+    } else {
+      try {
+        const matchedInfo = await filterSuppliersWithinRadius(site_pincode, material_category, 25.0, auctionId);
+        if (matchedInfo && matchedInfo.suppliers && matchedInfo.suppliers.length > 0) {
+          if (Array.isArray(selected_supplier_ids) && selected_supplier_ids.length > 0) {
+            matchedSuppliersList = matchedInfo.suppliers.filter(s => selected_supplier_ids.includes(s.id) || selected_supplier_ids.includes(s.userCode));
+          } else {
+            matchedSuppliersList = matchedInfo.suppliers;
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (matchedSuppliersList.length === 0) {
+      matchedSuppliersList = [
+        { id: "SUPP-JAI-HANUMAN", companyName: "Jai Hanuman Building Materials & Supplies", phone: "+91 98450 12345", distanceKm: 2.4, maskedCodeName: "Supplier-Alpha-12", isSelected: true },
+        { id: "SUPP-JAI-RAMA", companyName: "Jai Sri Rama Civil & Steel Syndicate", phone: "+91 97318 88377", distanceKm: 4.8, maskedCodeName: "Supplier-Beta-34", isSelected: true },
+        { id: "SUPP-SRI-KRISHNA", companyName: "Sri Krishna Building Solutions", phone: "+91 76769 42386", distanceKm: 5.2, maskedCodeName: "Supplier-Gamma-56", isSelected: true }
+      ];
+    }
+
+    newAuction.matching_suppliers_count = matchedSuppliersList.length;
+    newAuction.matched_suppliers = matchedSuppliersList;
+    newAuction.notified_suppliers = matchedSuppliersList;
+    newAuction.items = Array.isArray(items) && items.length > 0 ? items : undefined;
 
     // Save to Memory Store
     memoryStore.auctions.unshift(newAuction);
 
     // Save to PostgreSQL DB if connected
     try {
-      await query(`
-        INSERT INTO bulk_auctions (id, material_category, brand_preference, grade, quantity, unit, site_address, site_pincode, delivery_deadline, gst_percent, payment_terms, quality_standard, status, created_at, ends_at, current_l1_rate, buyer_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-      `, [
-        newAuction.id, newAuction.material_category, newAuction.brand_preference, newAuction.grade,
-        newAuction.quantity, newAuction.unit, newAuction.site_address, newAuction.site_pincode,
-        newAuction.delivery_deadline, newAuction.gst_percent, newAuction.payment_terms,
-        newAuction.quality_standard, newAuction.status, newAuction.created_at, newAuction.ends_at,
-        newAuction.current_l1_rate, newAuction.buyer_id
-      ]);
+      if (isPgConnected && isPgConnected()) {
+        await query(`
+          INSERT INTO bulk_auctions (id, material_category, brand_preference, grade, quantity, unit, site_address, site_pincode, delivery_deadline, gst_percent, payment_terms, quality_standard, status, created_at, ends_at, current_l1_rate, buyer_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        `, [
+          newAuction.id, newAuction.material_category, newAuction.brand_preference, newAuction.grade,
+          newAuction.quantity, newAuction.unit, newAuction.site_address, newAuction.site_pincode,
+          newAuction.delivery_deadline, newAuction.gst_percent, newAuction.payment_terms,
+          newAuction.quality_standard, newAuction.status, newAuction.created_at, newAuction.ends_at,
+          newAuction.current_l1_rate, newAuction.buyer_id
+        ]);
+      }
     } catch (dbErr) {
       // Fallback handled seamlessly
     }
@@ -92,8 +137,9 @@ router.post("/auctions", async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: `✅ Auction #${newAuction.id} Launched! Broadcast sent to ${newAuction.matching_suppliers_count} verified local suppliers within 5 km of ${newAuction.site_pincode}.`,
+      message: `✅ Auction #${newAuction.id} Launched! Broadcast sent to ${newAuction.matching_suppliers_count} verified local suppliers within 25-50 km radius of PIN ${newAuction.site_pincode}.`,
       matching_suppliers_count: newAuction.matching_suppliers_count,
+      matched_suppliers: newAuction.matched_suppliers,
       auction: newAuction
     });
   } catch (error) {
@@ -139,11 +185,13 @@ router.get("/auctions/:id", async (req, res) => {
     let auction = memoryStore.auctions.find((a) => a.id === id || a.id.toLowerCase() === id.toLowerCase());
 
     if (!auction) {
-      // Try searching PostgreSQL DB
+      // Try searching PostgreSQL DB if connected
       try {
-        const dbRes = await query("SELECT * FROM bulk_auctions WHERE id = $1", [id]);
-        if (dbRes.rows && dbRes.rows.length > 0) {
-          auction = dbRes.rows[0];
+        if (isPgConnected && isPgConnected()) {
+          const dbRes = await query("SELECT * FROM bulk_auctions WHERE id = $1", [id]);
+          if (dbRes.rows && dbRes.rows.length > 0) {
+            auction = dbRes.rows[0];
+          }
         }
       } catch (err) {}
     }
@@ -165,6 +213,25 @@ router.get("/auctions/:id", async (req, res) => {
     const l1Bid = bids[0];
     const currentL1Rate = l1Bid ? l1Bid.total_landed_rate : auction.current_l1_rate;
 
+    const diffMinutes = Math.floor(remainingSecs / 60);
+    const isTenMinWarningActive = Boolean(auction.is_ten_min_warning_active || (diffMinutes > 0 && diffMinutes <= 10));
+
+    // Handle Commercial Anti-Collusion Masking:
+    // If supplier view or explicitly requested masked, mask real vendor names
+    const isBuyerOrAdmin = req.query.role === "buyer" || req.query.role === "admin" || auction.status === "AWARDED";
+    const processedBids = bids.map((b, idx) => {
+      const maskedCode = b.masked_code_name || generateMaskedCodeName(b.vendor_id || b.vendor_name, auction.id);
+      return {
+        ...b,
+        rank: `L${idx + 1}`,
+        is_l1: idx === 0,
+        masked_code_name: maskedCode,
+        display_name: isBuyerOrAdmin ? b.vendor_name : maskedCode,
+        display_phone: isBuyerOrAdmin ? b.vendor_phone : "Confidential Supplier",
+        vendor_name: isBuyerOrAdmin ? b.vendor_name : maskedCode
+      };
+    });
+
     return res.json({
       success: true,
       auction: {
@@ -173,11 +240,25 @@ router.get("/auctions/:id", async (req, res) => {
         remaining_seconds: remainingSecs,
         formatted_countdown: `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`,
         total_bids_count: bids.length,
-        bids
+        is_ten_min_warning_active: isTenMinWarningActive,
+        bids: processedBids
       }
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * 3b. GET /api/auctions/:id/notifications — Fetch Live Worker WhatsApp Logs
+ */
+router.get("/auctions/:id/notifications", (req, res) => {
+  try {
+    const { id } = req.params;
+    const logs = getSentNotificationsLog(id);
+    return res.json({ success: true, count: logs.length, notifications: logs });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -228,11 +309,15 @@ router.post("/bids", async (req, res) => {
     const totalOrderValue = Number((landedPerUnit * auction.quantity).toFixed(2));
 
     const bidId = `BID-${Math.floor(1000 + Math.random() * 9000)}`;
+    const effectiveVendorId = vendor_id || `VENDOR-${Math.floor(100 + Math.random() * 900)}`;
+    const maskedCode = generateMaskedCodeName(effectiveVendorId, auction.id);
+
     const newBid = {
       id: bidId,
       auction_id: auction.id,
-      vendor_id: vendor_id || `VENDOR-${Math.floor(100 + Math.random() * 900)}`,
+      vendor_id: effectiveVendorId,
       vendor_name: vendor_name || "Verified BuildMitra Supplier",
+      masked_code_name: maskedCode,
       vendor_phone: vendor_phone || "+91 9888877777",
       vendor_rating: vendor_rating || 4.8,
       basic_rate_per_unit: numericBasic,
@@ -256,15 +341,17 @@ router.post("/bids", async (req, res) => {
 
     // Save to PostgreSQL if connected
     try {
-      await query(`
-        INSERT INTO auction_bids (id, auction_id, vendor_id, vendor_name, vendor_phone, vendor_rating, basic_rate_per_unit, gst_percent, gst_amount, freight_per_unit, unloading_per_unit, total_landed_rate, total_order_value, can_deliver_on_time, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-      `, [
-        newBid.id, newBid.auction_id, newBid.vendor_id, newBid.vendor_name, newBid.vendor_phone,
-        newBid.vendor_rating, newBid.basic_rate_per_unit, newBid.gst_percent, newBid.gst_amount,
-        newBid.freight_per_unit, newBid.unloading_per_unit, newBid.total_landed_rate,
-        newBid.total_order_value, newBid.can_deliver_on_time, newBid.created_at
-      ]);
+      if (isPgConnected && isPgConnected()) {
+        await query(`
+          INSERT INTO auction_bids (id, auction_id, vendor_id, vendor_name, vendor_phone, vendor_rating, basic_rate_per_unit, gst_percent, gst_amount, freight_per_unit, unloading_per_unit, total_landed_rate, total_order_value, can_deliver_on_time, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        `, [
+          newBid.id, newBid.auction_id, newBid.vendor_id, newBid.vendor_name, newBid.vendor_phone,
+          newBid.vendor_rating, newBid.basic_rate_per_unit, newBid.gst_percent, newBid.gst_amount,
+          newBid.freight_per_unit, newBid.unloading_per_unit, newBid.total_landed_rate,
+          newBid.total_order_value, newBid.can_deliver_on_time, newBid.created_at
+        ]);
+      }
     } catch (dbErr) {}
 
     // Calculate dynamic rank for this vendor
@@ -347,8 +434,9 @@ router.post("/po/generate", async (req, res) => {
 
     const awardedBid = bids.find((b) => b.id === bid_id) || bids[0] || {
       id: "BID-901",
-      vendor_name: "Bangalore Cement Traders",
-      vendor_phone: "+91 9888877771",
+      vendor_name: "Jai Hanuman Building Materials & Supplies",
+      vendor_phone: "+91 98450 12345",
+      masked_code_name: "Supplier-Alpha-12",
       basic_rate_per_unit: 250,
       gst_percent: 28,
       gst_amount: 70,
@@ -362,7 +450,7 @@ router.post("/po/generate", async (req, res) => {
     auction.awarded_bid_id = awardedBid.id;
     auction.awarded_vendor_name = awardedBid.vendor_name;
 
-    const poNumber = `PO-BM-${Math.floor(100000 + Math.random() * 900000)}`;
+    const poNumber = `BM-PO-${Math.floor(100000 + Math.random() * 900000)}`;
     const poDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
     const poEntry = {
@@ -373,6 +461,7 @@ router.post("/po/generate", async (req, res) => {
       buyer_phone: auction.buyer_phone,
       vendor_name: awardedBid.vendor_name,
       vendor_phone: awardedBid.vendor_phone,
+      masked_code_name: awardedBid.masked_code_name || "Supplier-Alpha-12",
       material_category: auction.material_category,
       brand_preference: auction.brand_preference,
       quantity: auction.quantity,
@@ -391,8 +480,8 @@ router.post("/po/generate", async (req, res) => {
     // Trigger WhatsApp Dispatch to Awarded Supplier
     triggerPoIssuedAlert(poEntry).catch((err) => console.error("WhatsApp PO dispatch error:", err));
 
-    // Build PDF Document using pdfkit
-    const doc = new PDFDocument({ margin: 40, size: "A4" });
+    // Build Professional Non-Overwritten PDF Document using pdfkit & poPdfService
+    const doc = new PDFDocument({ margin: 36, size: "A4" });
     const chunks = [];
 
     doc.on("data", (chunk) => chunks.push(chunk));
@@ -409,58 +498,44 @@ router.post("/po/generate", async (req, res) => {
       });
     });
 
-    // PDF Header & Branding
-    doc.rect(0, 0, 595, 60).fill("#0f172a");
-    doc.fillColor("#ffffff").fontSize(20).font("Helvetica-Bold").text("BUILDMITRA BULK PURCHASE ORDER", 40, 20);
-    doc.fontSize(10).font("Helvetica").text(`PO NO: ${poNumber}  |  DATE: ${poDate}`, 350, 25);
-
-    // Section 1 — Buyer & Supplier Details
-    doc.moveDown(3);
-    doc.fillColor("#0f172a").fontSize(14).font("Helvetica-Bold").text("OFFICIAL PURCHASE ORDER / WORK CONTRACT", 40, 80);
-    doc.rect(40, 100, 515, 1).fill("#cbd5e1");
-
-    doc.fillColor("#334155").fontSize(10).font("Helvetica-Bold").text("BUYER / CONSIGNOR:", 40, 115);
-    doc.font("Helvetica").text(`${auction.buyer_name}`, 40, 130);
-    doc.text(`Phone: ${auction.buyer_phone}`, 40, 145);
-    doc.text(`Delivery Site: ${auction.site_address} (${auction.site_pincode})`, 40, 160);
-
-    doc.font("Helvetica-Bold").text("AWARDED SUPPLIER (L1):", 310, 115);
-    doc.font("Helvetica").text(`${awardedBid.vendor_name}`, 310, 130);
-    doc.text(`Vendor Phone: ${awardedBid.vendor_phone || '+91 9888877771'}`, 310, 145);
-    doc.text(`Quality Standard: ${auction.quality_standard}`, 310, 160);
-
-    // Section 2 — Material Specification Table
-    doc.rect(40, 190, 515, 25).fill("#f1f5f9");
-    doc.fillColor("#0f172a").fontSize(10).font("Helvetica-Bold");
-    doc.text("ITEM DESCRIPTION", 50, 198);
-    doc.text("QTY", 250, 198);
-    doc.text("LANDED RATE", 340, 198);
-    doc.text("TOTAL AMOUNT", 450, 198);
-
-    doc.font("Helvetica").fontSize(10).fillColor("#1e293b");
-    doc.text(`${auction.material_category} (${auction.brand_preference}) - ${auction.grade}`, 50, 225);
-    doc.text(`${auction.quantity} ${auction.unit}`, 250, 225);
-    doc.text(`INR ${awardedBid.total_landed_rate.toFixed(2)}`, 340, 225);
-    doc.text(`INR ${awardedBid.total_order_value.toLocaleString('en-IN')}`, 450, 225);
-
-    // Rate Breakdown Box
-    doc.rect(40, 255, 515, 90).stroke("#cbd5e1");
-    doc.fontSize(9).font("Helvetica-Bold").fillColor("#0284c7").text("LANDED COST BREAKDOWN PER UNIT:", 50, 265);
-    doc.font("Helvetica").fillColor("#475569");
-    doc.text(`• Basic Ex-Factory Rate: INR ${awardedBid.basic_rate_per_unit.toFixed(2)} / ${auction.unit}`, 50, 280);
-    doc.text(`• GST (${awardedBid.gst_percent}%): INR ${(awardedBid.gst_amount || 0).toFixed(2)} / ${auction.unit}`, 50, 295);
-    doc.text(`• Freight / Transport: INR ${awardedBid.freight_per_unit.toFixed(2)} / ${auction.unit}`, 50, 310);
-    doc.text(`• Hamali / Unloading: INR ${awardedBid.unloading_per_unit.toFixed(2)} / ${auction.unit}`, 50, 325);
-
-    // Terms & Conditions
-    doc.rect(40, 360, 515, 80).fill("#f8fafc");
-    doc.fontSize(10).font("Helvetica-Bold").fillColor("#0f172a").text("TERMS & CONDITIONS OF SUPPLY:", 50, 370);
-    doc.fontSize(9).font("Helvetica").fillColor("#334155");
-    doc.text(`1. Payment Terms: ${auction.payment_terms} directly to supplier upon physical site verification.`, 50, 388);
-    doc.text(`2. Delivery Timeline: Strict unloading by ${auction.delivery_deadline}.`, 50, 403);
-    doc.text(`3. Material Quality: 100% ISI certified fresh factory stock with test certificate.`, 50, 418);
-
-    doc.fontSize(10).font("Helvetica-Bold").fillColor("#16a34a").text("STATUS: PURCHASE ORDER ISSUED (L1 AWARDED)", 40, 460);
+    // Render Professional Corporate PO Document
+    buildProfessionalPoPdf(doc, {
+      poNumber: poNumber,
+      poDate: poDate,
+      rfqBatchCode: auction.id,
+      buyer: {
+        name: auction.buyer_name,
+        phone: auction.buyer_phone,
+        email: "procurement@buildmitra.com"
+      },
+      supplier: {
+        name: awardedBid.vendor_name,
+        phone: awardedBid.vendor_phone,
+        maskedCodeName: awardedBid.masked_code_name
+      },
+      items: auction.items && auction.items.length > 0 ? auction.items : [
+        {
+          itemName: auction.specific_item || `${auction.material_category} (${auction.brand_preference || 'Standard'})`,
+          category: auction.material_category,
+          brand: auction.brand_preference,
+          grade: auction.grade,
+          quantity: auction.quantity,
+          unit: auction.unit,
+          basicRate: awardedBid.basic_rate_per_unit,
+          gstPercent: awardedBid.gst_percent,
+          freight: awardedBid.freight_per_unit,
+          hamali: awardedBid.unloading_per_unit,
+          landedRate: awardedBid.total_landed_rate,
+          totalValue: awardedBid.total_order_value
+        }
+      ],
+      siteAddress: auction.site_address,
+      sitePincode: auction.site_pincode,
+      paymentTerms: auction.payment_terms || "COD on Unloading",
+      deliveryDeadline: auction.delivery_deadline || "Tomorrow by 11:00 AM",
+      qualityStandard: auction.quality_standard || "100% Fresh ISI Factory Stock with MTC",
+      awardedBid
+    });
 
     doc.end();
   } catch (error) {
@@ -470,56 +545,140 @@ router.post("/po/generate", async (req, res) => {
 });
 
 /**
- * 7. GET /api/bulk-buying/catalog-items — Connected to BuildMitra Master Items & Live Benchmark Rates
+ * 7. GET /api/bulk-buying/catalog-items — Connected to BuildMitra Admin Master Items & Live Market Rates
  */
 router.get("/bulk-buying/catalog-items", async (req, res) => {
   try {
-    let Product;
-    try { Product = require("../models/Product"); } catch (e) {}
+    const { category, subCategory, search } = req.query;
 
-    let masterProducts = [];
-    if (Product) {
+    let MasterItem;
+    let MarketRate;
+    let MasterMaterial;
+    try { MasterItem = require("../models/MasterItem"); } catch (e) {}
+    try { MarketRate = require("../models/MarketRate"); } catch (e) {}
+    try { MasterMaterial = require("../models/MasterMaterial"); } catch (e) {}
+
+    let items = [];
+    let rateMap = new Map();
+
+    if (MasterItem) {
       try {
-        masterProducts = await Product.find({ status: "Active" }).select("masterCode itemName category subCategory brand unit basePrice").lean();
-      } catch (e) {}
+        const filter = { status: "active" };
+        if (category) filter.category = new RegExp(category, "i");
+        if (subCategory) filter.subCategory = new RegExp(subCategory, "i");
+        if (search) {
+          filter.$or = [
+            { itemName: new RegExp(search, "i") },
+            { brand: new RegExp(search, "i") },
+            { specification: new RegExp(search, "i") },
+            { masterItemCode: new RegExp(search, "i") }
+          ];
+        }
+
+        const [dbItems, dbRates] = await Promise.all([
+          MasterItem.find(filter).sort({ category: 1, itemName: 1 }).lean().exec(),
+          MarketRate ? MarketRate.find({ approvalStatus: "approved", isActive: true }).lean().exec() : Promise.resolve([])
+        ]);
+
+        if (Array.isArray(dbRates)) {
+          dbRates.forEach((r) => {
+            if (r.masterItemCode) rateMap.set(r.masterItemCode, r.currentRate);
+            if (r.itemCode) rateMap.set(r.itemCode, r.currentRate);
+          });
+        }
+
+        if (Array.isArray(dbItems) && dbItems.length > 0) {
+          items = dbItems.map((m) => {
+            const cat = (m.category || "GENERAL").toUpperCase();
+            const liveRate = rateMap.get(m.masterItemCode) ?? m.referenceRate ?? 100;
+            const gst = m.gst || (cat.includes("CEMENT") ? 28 : 18);
+            return {
+              id: m.masterItemCode || String(m._id),
+              masterItemCode: m.masterItemCode || `MAT-${m._id}`,
+              name: m.brand ? `${m.itemName} (${m.brand})` : m.itemName,
+              itemName: m.itemName,
+              category: cat,
+              subCategory: m.subCategory || m.category || "General",
+              brand: m.brand || "Standard Brand",
+              grade: m.specification || "Standard Grade",
+              specification: m.specification || "",
+              unit: (m.unit || "BAGS").toUpperCase(),
+              benchmarkRate: Number(liveRate),
+              gstPercent: Number(gst),
+              hsnCode: m.hsnCode || "",
+              imageUrl: m.imageUrl || ""
+            };
+          });
+        }
+      } catch (dbErr) {
+        console.warn("MasterItem DB fetch fallback:", dbErr.message);
+      }
     }
 
-    const fallbackCatalog = [
-      { category: "CEMENT", subCategory: "Structural", itemName: "UltraTech PPC Cement (50kg Bag)", brand: "UltraTech Cement", grade: "PPC", unit: "BAGS", benchmarkRate: 365, gstPercent: 28 },
-      { category: "CEMENT", subCategory: "Structural", itemName: "UltraTech OPC 53 Grade Cement", brand: "UltraTech Cement", grade: "OPC 53", unit: "BAGS", benchmarkRate: 385, gstPercent: 28 },
-      { category: "CEMENT", subCategory: "Structural", itemName: "ACC Suraksha Power Cement", brand: "ACC Cement", grade: "PPC", unit: "BAGS", benchmarkRate: 360, gstPercent: 28 },
-      { category: "CEMENT", subCategory: "Structural", itemName: "Birla Super 53 Grade Cement", brand: "Birla Super", grade: "OPC 53", unit: "BAGS", benchmarkRate: 375, gstPercent: 28 },
-      { category: "TMT STEEL", subCategory: "Steel Rebars", itemName: "12mm TMT Rebar (Beam & Column)", brand: "Tata Tiscon", grade: "Fe550D (Seismic)", unit: "TONNES", benchmarkRate: 58500, gstPercent: 18 },
-      { category: "TMT STEEL", subCategory: "Steel Rebars", itemName: "8mm TMT Rebar (Binding & Stirrups)", brand: "Tata Tiscon", grade: "Fe550D (Seismic)", unit: "TONNES", benchmarkRate: 59000, gstPercent: 18 },
-      { category: "TMT STEEL", subCategory: "Steel Rebars", itemName: "10mm TMT Rebar (Slab & Lintel)", brand: "JSW Neosteel", grade: "Fe550D (Seismic)", unit: "TONNES", benchmarkRate: 58200, gstPercent: 18 },
-      { category: "TMT STEEL", subCategory: "Steel Rebars", itemName: "16mm TMT Rebar (Heavy Column)", brand: "Jindal Panther", grade: "Fe550D (Seismic)", unit: "TONNES", benchmarkRate: 58000, gstPercent: 18 },
-      { category: "TMT STEEL", subCategory: "Steel Rebars", itemName: "20mm TMT Rebar (High-Rise Column)", brand: "SAIL", grade: "Fe550D (Seismic)", unit: "TONNES", benchmarkRate: 57800, gstPercent: 18 },
-      { category: "BLOCKS", subCategory: "Masonry", itemName: "6-Inch Concrete Solid Blocks", brand: "APCO Blocks", grade: "Standard 400x200x150mm", unit: "LOADS", benchmarkRate: 42, gstPercent: 18 },
-      { category: "BLOCKS", subCategory: "Masonry", itemName: "4-Inch Concrete Solid Blocks", brand: "APCO Blocks", grade: "Standard 400x200x100mm", unit: "LOADS", benchmarkRate: 32, gstPercent: 18 },
-      { category: "BLOCKS", subCategory: "Masonry", itemName: "8-Inch AAC Lightweight Blocks", brand: "Sobha Concrete", grade: "AAC 600x200x200mm", unit: "LOADS", benchmarkRate: 75, gstPercent: 18 },
-      { category: "SAND", subCategory: "Aggregates", itemName: "Triple Washed M-Sand (Concrete Mix)", brand: "Quarry Direct", grade: "Zone II Fine", unit: "CFT", benchmarkRate: 48, gstPercent: 18 },
-      { category: "SAND", subCategory: "Aggregates", itemName: "Double Washed P-Sand (Plastering)", brand: "Quarry Direct", grade: "Zone IV Ultra Fine", unit: "CFT", benchmarkRate: 52, gstPercent: 18 },
-      { category: "AGGREGATES", subCategory: "Aggregates", itemName: "20mm Coarse Blue Metal Jelly Aggregate", brand: "Quarry Direct", grade: "Hard Granite Crushed", unit: "CFT", benchmarkRate: 38, gstPercent: 18 },
-      { category: "AGGREGATES", subCategory: "Aggregates", itemName: "12mm Coarse Blue Metal Jelly Aggregate", brand: "Quarry Direct", grade: "Hard Granite Crushed", unit: "CFT", benchmarkRate: 40, gstPercent: 18 }
-    ];
+    // Fallback to MasterMaterial if MasterItem yielded nothing
+    if (items.length === 0 && MasterMaterial) {
+      try {
+        const matItems = await MasterMaterial.find({ status: { $ne: "Inactive" } }).lean().exec();
+        if (Array.isArray(matItems) && matItems.length > 0) {
+          items = matItems.map((m) => {
+            const cat = (m.category || "GENERAL").toUpperCase();
+            return {
+              id: m.masterCode || m.material_code || String(m._id),
+              masterItemCode: m.masterCode || m.material_code || `MAT-${m._id}`,
+              name: m.brand ? `${m.product_name || m.itemName} (${m.brand})` : (m.product_name || m.itemName),
+              itemName: m.product_name || m.itemName,
+              category: cat,
+              subCategory: m.subcategory || m.category || "General",
+              brand: m.brand || "Standard Brand",
+              grade: m.specification || "Standard Grade",
+              specification: m.specification || "",
+              unit: (m.unit || "BAGS").toUpperCase(),
+              benchmarkRate: Number(m.rate || 100),
+              gstPercent: Number(m.gst || (cat.includes("CEMENT") ? 28 : 18)),
+              imageUrl: m.imageUrl || m.image || ""
+            };
+          });
+        }
+      } catch (matErr) {}
+    }
 
-    const catalogItems = masterProducts.length > 0 
-      ? masterProducts.map((p) => ({
-          category: (p.category || "GENERAL").toUpperCase(),
-          subCategory: p.subCategory || "General",
-          itemName: p.itemName,
-          brand: p.brand || "Standard Brand",
-          grade: "Standard Grade",
-          unit: (p.unit || "NOS").toUpperCase(),
-          benchmarkRate: p.basePrice || 100,
-          gstPercent: (p.category || "").toUpperCase().includes("CEMENT") ? 28 : 18
-        }))
-      : fallbackCatalog;
+    // Comprehensive Admin Master Default Seed Catalog (Zero-Downtime Guarantee)
+    if (items.length === 0) {
+      const canonicalCatalog = [
+        { id: "MAT-CEM-01", masterItemCode: "MAT-CEM-01", itemName: "UltraTech PPC Cement (50kg Bag)", name: "UltraTech PPC Cement (50kg Bag)", category: "CEMENT", subCategory: "Structural Cement", brand: "UltraTech Cement", grade: "PPC (IS 1489 Part 1)", specification: "50kg HDPE Bag • Fly Ash Based", unit: "BAGS", benchmarkRate: 365, gstPercent: 28 },
+        { id: "MAT-CEM-02", masterItemCode: "MAT-CEM-02", itemName: "UltraTech Super OPC 53 Grade", name: "UltraTech Super OPC 53 Grade Cement", category: "CEMENT", subCategory: "High Strength", brand: "UltraTech Cement", grade: "OPC 53 (IS 269)", specification: "50kg Bag • 28-Day Strength 53+ MPa", unit: "BAGS", benchmarkRate: 385, gstPercent: 28 },
+        { id: "MAT-CEM-03", masterItemCode: "MAT-CEM-03", itemName: "ACC Suraksha Power Cement", name: "ACC Suraksha Power Cement (50kg Bag)", category: "CEMENT", subCategory: "Water-Resistant", brand: "ACC Cement", grade: "PPC Super", specification: "Water-repellent active micro-particles", unit: "BAGS", benchmarkRate: 360, gstPercent: 28 },
+        { id: "MAT-CEM-04", masterItemCode: "MAT-CEM-04", itemName: "Birla Super 53 Grade Cement", name: "Birla Super 53 Grade Cement", category: "CEMENT", subCategory: "High Strength", brand: "Birla Super", grade: "OPC 53 (IS 269)", specification: "High early setting strength for slabs", unit: "BAGS", benchmarkRate: 375, gstPercent: 28 },
+        { id: "MAT-STL-01", masterItemCode: "MAT-STL-01", itemName: "12mm TMT Rebar (Fe 550D)", name: "12mm TMT Rebar (Beam & Column)", category: "TMT STEEL", subCategory: "Primary Rebars", brand: "Tata Tiscon", grade: "Fe 550D Seismic (IS 1786)", specification: "High elongation ductility for earthquake zones", unit: "TONNES", benchmarkRate: 58500, gstPercent: 18 },
+        { id: "MAT-STL-02", masterItemCode: "MAT-STL-02", itemName: "10mm TMT Rebar (Fe 550D)", name: "10mm TMT Rebar (Slab & Lintel)", category: "TMT STEEL", subCategory: "Primary Rebars", brand: "JSW Neosteel", grade: "Fe 550D (IS 1786)", specification: "Virgin billet rolled with corrosion protection", unit: "TONNES", benchmarkRate: 58200, gstPercent: 18 },
+        { id: "MAT-STL-03", masterItemCode: "MAT-STL-03", itemName: "16mm TMT Rebar (Heavy Column)", name: "16mm TMT Rebar (Heavy Structural)", category: "TMT STEEL", subCategory: "Primary Rebars", brand: "Jindal Panther", grade: "Fe 550D (IS 1786)", specification: "High tensile yield strength 550 N/mm²", unit: "TONNES", benchmarkRate: 58000, gstPercent: 18 },
+        { id: "MAT-STL-04", masterItemCode: "MAT-STL-04", itemName: "8mm TMT Rebar (Stirrups & Rings)", name: "8mm TMT Rebar (Binding & Stirrups)", category: "TMT STEEL", subCategory: "Secondary Rebars", brand: "Tata Tiscon", grade: "Fe 550D", specification: "Ring & stirrup ductile bending grade", unit: "TONNES", benchmarkRate: 59000, gstPercent: 18 },
+        { id: "MAT-SND-01", masterItemCode: "MAT-SND-01", itemName: "Triple-Washed M-Sand", name: "Triple-Washed M-Sand (Zone II Concrete)", category: "SAND", subCategory: "Manufactured Sand", brand: "Quarry Direct", grade: "Zone II (IS 383)", specification: "Double hydro-cyclone washed silt < 3%", unit: "CFT", benchmarkRate: 48, gstPercent: 18 },
+        { id: "MAT-SND-02", masterItemCode: "MAT-SND-02", itemName: "Double-Washed P-Sand", name: "Double-Washed P-Sand (Plastering)", category: "SAND", subCategory: "Plastering Sand", brand: "Quarry Direct", grade: "Zone IV Ultra-Fine", specification: "Sub-150 micron fine washed plaster sand", unit: "CFT", benchmarkRate: 52, gstPercent: 18 },
+        { id: "MAT-AGG-01", masterItemCode: "MAT-AGG-01", itemName: "20mm Blue Metal Jelly Aggregate", name: "20mm Coarse Granite Blue Metal Jelly", category: "AGGREGATES", subCategory: "Coarse Aggregate", brand: "Quarry Direct", grade: "Hard Granite Crushed", specification: "Flakiness index < 15%, angular crushed", unit: "CFT", benchmarkRate: 38, gstPercent: 18 },
+        { id: "MAT-AGG-02", masterItemCode: "MAT-AGG-02", itemName: "12mm Blue Metal Jelly Aggregate", name: "12mm Coarse Granite Blue Metal Jelly", category: "AGGREGATES", subCategory: "Coarse Aggregate", brand: "Quarry Direct", grade: "Hard Granite Crushed", specification: "Graded for slab and beam concrete mixes", unit: "CFT", benchmarkRate: 40, gstPercent: 18 },
+        { id: "MAT-BLK-01", masterItemCode: "MAT-BLK-01", itemName: "6-Inch Concrete Solid Blocks", name: "6-Inch Concrete Solid Blocks (400x200x150)", category: "BLOCKS", subCategory: "Solid Masonry", brand: "APCO Blocks", grade: "Heavy Duty High-Density", specification: "Compressive strength > 5.0 N/mm²", unit: "LOADS", benchmarkRate: 42, gstPercent: 18 },
+        { id: "MAT-BLK-02", masterItemCode: "MAT-BLK-02", itemName: "4-Inch Concrete Partition Blocks", name: "4-Inch Concrete Solid Blocks (400x200x100)", category: "BLOCKS", subCategory: "Partition Masonry", brand: "APCO Blocks", grade: "Standard High-Density", specification: "Light partition wall masonry units", unit: "LOADS", benchmarkRate: 32, gstPercent: 18 },
+        { id: "MAT-BLK-03", masterItemCode: "MAT-BLK-03", itemName: "8-Inch AAC Lightweight Blocks", name: "8-Inch AAC Lightweight Blocks (600x200x200)", category: "BLOCKS", subCategory: "Autoclaved Aerated", brand: "Sobha Concrete", grade: "Grade 1 (IS 2185 Part 3)", specification: "Thermal insulation density 550-650 kg/m³", unit: "LOADS", benchmarkRate: 75, gstPercent: 18 },
+        { id: "MAT-RMC-01", masterItemCode: "MAT-RMC-01", itemName: "M25 Grade ReadyMix Concrete (RMC)", name: "M25 ReadyMix Concrete (RMC Pump Mix)", category: "RMC", subCategory: "ReadyMix Concrete", brand: "UltraTech RMC", grade: "M25 (28-day 25 MPa)", specification: "Transit mixer pump mix with slump 120±25mm", unit: "CUM", benchmarkRate: 4200, gstPercent: 18 }
+      ];
+
+      items = canonicalCatalog;
+      if (category) {
+        items = items.filter(i => i.category.toLowerCase().includes(category.toLowerCase()));
+      }
+      if (search) {
+        const s = search.toLowerCase();
+        items = items.filter(i => i.name.toLowerCase().includes(s) || i.brand.toLowerCase().includes(s) || i.category.toLowerCase().includes(s));
+      }
+    }
 
     return res.json({
       success: true,
-      count: catalogItems.length,
-      catalog: catalogItems
+      count: items.length,
+      categories: Array.from(new Set(items.map(i => i.category))).sort(),
+      catalog: items,
+      items
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

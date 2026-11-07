@@ -1,6 +1,10 @@
 const express = require("express");
 const Quote = require("../models/Quote");
 const router = express.Router();
+const { authenticateToken, requireAdmin } = require("../middleware/auth");
+
+// All enquiry operations require a verified BuildMitra session.
+router.use(authenticateToken);
 
 const Enquiry = require("../models/Enquiry");
 const MarketplaceListing = require("../models/MarketplaceListing");
@@ -25,13 +29,6 @@ function configuredAdminPhone() {
     process.env.ADMIN_ENQUIRY_PHONE || process.env.ADMIN_REAL_ESTATE_PHONE
   );
   return validPhone(phone) ? phone : "";
-}
-
-function requireAdmin(req, res, next) {
-  if (String(req.headers["x-user-role"] || "").toLowerCase() !== "admin") {
-    return res.status(403).json({ success: false, message: "Admin required" });
-  }
-  next();
 }
 
 function requireUserCode(req, res, next) {
@@ -1040,8 +1037,6 @@ BuildMitra`;
 });
 
 module.exports = router;
-
-
 
 
 

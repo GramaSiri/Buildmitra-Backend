@@ -3,7 +3,7 @@ const router = express.Router();
 const controller = require("../../controllers/master/materialController");
 
 const requireAdmin = (req, res, next) => {
-  const role = String(req.user?.role || req.headers['x-user-role'] || '').toLowerCase();
+  const role = String(req.user?.role || '').toLowerCase();
   if (role !== 'admin') {
     return res.status(403).json({ success: false, message: 'Admin access required.' });
   }

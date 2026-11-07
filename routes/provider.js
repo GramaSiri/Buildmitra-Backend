@@ -462,7 +462,141 @@ router.post("/reports/:providerUserCode/save", async (req, res) => {
   }
 });
 
+
+// Supplier Orders Persistence
+const SupplierOrder = require("../models/SupplierOrder");
+
+const DEFAULT_ORDERS = [
+  {
+    orderId: "ORD-9021",
+    buyerUserCode: "BUY-000001",
+    buyerName: "Rajesh Sharma",
+    buyerPhone: "9876543210",
+    items: [
+      { itemName: "UltraTech Cement PPC 50kg", quantity: 150, unit: "Bags", price: 380, total: 57000 }
+    ],
+    totalAmount: 57000,
+    status: "Pending",
+    paymentStatus: "Paid",
+    orderDate: new Date().toISOString().split("T")[0],
+    shippingAddress: "Whitefield, Bengaluru"
+  },
+  {
+    orderId: "ORD-9022",
+    buyerUserCode: "BUY-000002",
+    buyerName: "Anand Verma",
+    buyerPhone: "9845012345",
+    items: [
+      { itemName: "Tata Tiscon 550D TMT Rebar 12mm", quantity: 3, unit: "Tons", price: 62000, total: 186000 }
+    ],
+    totalAmount: 186000,
+    status: "Dispatched",
+    paymentStatus: "Paid",
+    orderDate: new Date().toISOString().split("T")[0],
+    dispatchDate: new Date().toISOString().split("T")[0],
+    trackingNumber: "TRK-BLR-88392",
+    shippingAddress: "Electronic City, Bengaluru"
+  }
+];
+
+// Get orders received by supplier
+router.get("/orders/:providerUserCode", async (req, res) => {
+  try {
+    const code = String(req.params.providerUserCode || "").trim();
+    if (!code) return res.json({ success: true, count: 0, orders: [] });
+
+    const regex = new RegExp(`^${code.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}$`, "i");
+    let orders = await SupplierOrder.find({ supplierUserCode: regex }).sort({ createdAt: -1 });
+
+    if (orders.length === 0) {
+      const toSeed = DEFAULT_ORDERS.map((o, idx) => ({
+        ...o,
+        supplierUserCode: code,
+        orderId: `ORD-${Date.now().toString().slice(-4)}${idx + 1}`
+      }));
+      orders = await SupplierOrder.insertMany(toSeed);
+    }
+
+    res.json({ success: true, count: orders.length, orders });
+  } catch (error) {
+    console.error("Get supplier orders error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Create new order
+router.post("/orders", async (req, res) => {
+  try {
+    const { supplierUserCode, buyerUserCode, buyerName, buyerPhone, items, totalAmount } = req.body;
+    if (!supplierUserCode) {
+      return res.status(400).json({ success: false, message: "supplierUserCode is required" });
+    }
+
+    const orderCount = await SupplierOrder.countDocuments({});
+    const orderId = req.body.orderId || `ORD-${String(orderCount + 1001)}`;
+
+    const order = new SupplierOrder({
+      ...req.body,
+      supplierUserCode,
+      orderId,
+      orderDate: req.body.orderDate || new Date().toISOString().split("T")[0],
+      totalAmount: Number(totalAmount) || 0
+    });
+
+    await order.save();
+    res.status(201).json({ success: true, order });
+  } catch (error) {
+    console.error("Create supplier order error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Update order dispatch status
+router.put("/orders/:orderId/dispatch", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, trackingNumber } = req.body;
+
+    const effectiveStatus = status || "Dispatched";
+    const updateData = {
+      status: effectiveStatus,
+      ...(effectiveStatus === "Dispatched" ? { dispatchDate: new Date().toISOString().split("T")[0] } : {}),
+      ...(effectiveStatus === "Delivered" ? { deliveryDate: new Date().toISOString().split("T")[0] } : {}),
+      ...(trackingNumber ? { trackingNumber } : {})
+    };
+
+    const order = await SupplierOrder.findOneAndUpdate(
+      { $or: [{ orderId }, { _id: orderId.length === 24 ? orderId : null }] },
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+
+    res.json({ success: true, message: `Order marked as ${effectiveStatus}`, order });
+  } catch (error) {
+    console.error("Update dispatch error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get orders placed by buyer
+router.get("/buyer-orders/:buyerUserCode", async (req, res) => {
+  try {
+    const code = String(req.params.buyerUserCode || "").trim();
+    if (!code) return res.json({ success: true, count: 0, orders: [] });
+
+    const regex = new RegExp(`^${code.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}$`, "i");
+    const orders = await SupplierOrder.find({ buyerUserCode: regex }).sort({ createdAt: -1 });
+    res.json({ success: true, count: orders.length, orders });
+  } catch (error) {
+    console.error("Get buyer orders error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;
+
 
 
 
